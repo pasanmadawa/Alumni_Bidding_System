@@ -1,0 +1,21 @@
+{
+  "name": "express-mvc",
+  "version": "1.0.0",
+  "description": "Express MVC example from expressjs/express",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "method-override": "^3.0.0",
+    "morgan": "^1.10.0",
+    "hbs": "^4.2.0"
+  }
+}
