@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Char(36)
+  email           String    @unique @db.VarChar(191)
+  passwordHash    String    @map("password_hash") @db.VarChar(255)
+  emailVerified   Boolean   @default(false) @map("email_verified")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  role            String    @default("ALUMNUS") @db.VarChar(20)
+  appearanceCount Int       @default(0) @map("appearance_count")
+
+  profile                 Profile?
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  bids                    Bid[]
+  sponsorOffers           SponsorOffer[]             @relation("AlumnusOffers")
+  featuredAlumni          FeaturedAlumni[]
+  apiKeysCreated          ApiKey[]                   @relation("ApiKeyCreator")
+  jwtBlacklist            JwtBlacklist[]
+  refreshTokens           RefreshToken[]
+  alumniMonthEventCredits AlumniMonthEventCredit[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @map("user_id") @db.Char(36)
+  tokenHash String   @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @map("user_id") @db.Char(36)
+  token     String   @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Char(36)
+  userId    String    @map("user_id") @db.Char(36)
+  token     String    @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at")
+  used      Boolean   @default(false)
+  usedAt    DateTime? @map("used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Profile {
+  id            String   @id @default(uuid()) @db.Char(36)
+  userId        String?  @unique @map("user_id") @db.Char(36)
+  firstName     String?  @map("first_name") @db.VarChar(100)
+  lastName      String?  @map("last_name") @db.VarChar(100)
+  bio           String?  @db.Text
+  contactNumber String?  @map("contact_number") @db.VarChar(50)
+  linkedinUrl   String?  @map("linkedin_url") @db.VarChar(255)
+  profileImage  String?  @map("profile_image") @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  degrees        Degree[]
+  certifications Certification[]
+  licences       Licence[]
+  courses        Course[]
+  employment     Employment[]
+
+  @@map("profiles")
+}
+
+model Degree {
+  id             String    @id @default(uuid()) @db.Char(36)
+  profileId      String?   @map("profile_id") @db.Char(36)
+  title          String    @db.VarChar(255)
+  institutionUrl String?   @map("institution_url") @db.VarChar(255)
+  completionDate DateTime? @map("completion_date") @db.Date
+
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("degrees")
+}
+
+model Certification {
+  id             String    @id @default(uuid()) @db.Char(36)
+  profileId      String?   @map("profile_id") @db.Char(36)
+  name           String    @db.VarChar(255)
+  issuerUrl      String?   @map("issuer_url") @db.VarChar(255)
+  completionDate DateTime? @map("completion_date") @db.Date
+
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("certifications")
+}
+
+model Licence {
+  id             String    @id @default(uuid()) @db.Char(36)
+  profileId      String?   @map("profile_id") @db.Char(36)
+  name           String    @db.VarChar(255)
+  issuerUrl      String?   @map("issuer_url") @db.VarChar(255)
+  completionDate DateTime? @map("completion_date") @db.Date
+
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("licences")
+}
+
+model Course {
+  id             String    @id @default(uuid()) @db.Char(36)
+  profileId      String?   @map("profile_id") @db.Char(36)
+  name           String    @db.VarChar(255)
+  courseUrl      String?   @map("course_url") @db.VarChar(255)
+  completionDate DateTime? @map("completion_date") @db.Date
+
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("courses")
+}
+
+model Employment {
+  id        String    @id @default(uuid()) @db.Char(36)
+  profileId String?   @map("profile_id") @db.Char(36)
+  company   String    @db.VarChar(255)
+  role      String    @db.VarChar(255)
+  startDate DateTime? @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("employment")
+}
+
+model Bid {
+  id                 String    @id @default(uuid()) @db.Char(36)
+  userId             String?   @map("user_id") @db.Char(36)
+  amount             Decimal   @db.Decimal(10, 2)
+  bidDate            DateTime  @default(now()) @map("bid_date")
+  bidMonth           Int?      @map("bid_month")
+  bidYear            Int?      @map("bid_year")
+  status             String    @default("PENDING") @db.VarChar(20)
+  targetFeaturedDate DateTime? @map("target_featured_date") @db.Date
+
+  user                User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bidOfferAllocations BidOfferAllocation[]
+
+  @@index([userId])
+  @@map("bids")
+}
+
+model Sponsor {
+  id        String   @id @default(uuid()) @db.Char(36)
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  offers SponsorOffer[]
+
+  @@map("sponsors")
+}
+
+model SponsorOffer {
+  id              String   @id @default(uuid()) @db.Char(36)
+  sponsorId       String   @map("sponsor_id") @db.Char(36)
+  alumnusUserId   String   @map("alumnus_user_id") @db.Char(36)
+  itemType        String   @map("item_type") @db.VarChar(32)
+  itemId          String   @map("item_id") @db.Char(36)
+  amountPromised  Decimal  @map("amount_promised") @db.Decimal(12, 2)
+  amountRemaining Decimal  @map("amount_remaining") @db.Decimal(12, 2)
+  revoked         Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  sponsor             Sponsor              @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  alumnus             User                 @relation("AlumnusOffers", fields: [alumnusUserId], references: [id], onDelete: Cascade)
+  bidOfferAllocations BidOfferAllocation[]
+
+  @@index([sponsorId])
+  @@index([alumnusUserId])
+  @@map("sponsor_offers")
+}
+
+model BidOfferAllocation {
+  id              String  @id @default(uuid()) @db.Char(36)
+  bidId           String  @map("bid_id") @db.Char(36)
+  offerId         String  @map("offer_id") @db.Char(36)
+  amountAllocated Decimal @map("amount_allocated") @db.Decimal(12, 2)
+
+  bid   Bid          @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  offer SponsorOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([bidId])
+  @@index([offerId])
+  @@map("bid_offer_allocations")
+}
+
+model AlumniMonthEventCredit {
+  userId           String @map("user_id") @db.Char(36)
+  year             Int
+  month            Int
+  extraWinsAllowed Int    @default(0) @map("extra_wins_allowed")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, year, month])
+  @@map("alumni_month_event_credits")
+}
+
+model FeaturedAlumni {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  userId             String?  @map("user_id") @db.Char(36)
+  featuredDate       DateTime @unique @map("featured_date") @db.Date
+  winningBidId       String?  @map("winning_bid_id") @db.Char(36)
+  alumniPayoutAmount Decimal? @map("alumni_payout_amount") @db.Decimal(12, 2)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("featured_alumni")
+}
+
+model ApiKey {
+  id          String   @id @default(uuid()) @db.Char(36)
+  apiKey      String   @unique @map("api_key") @db.VarChar(191)
+  clientName  String?  @map("client_name") @db.VarChar(191)
+  usageCount  Int      @default(0) @map("usage_count")
+  revoked     Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String?  @map("created_by") @db.Char(36)
+
+  createdBy User? @relation("ApiKeyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
+  @@map("api_keys")
+}
+
+model ApiLog {
+  id        String   @id @default(uuid()) @db.Char(36)
+  apiKey    String?  @map("api_key") @db.VarChar(191)
+  endpoint  String?  @db.VarChar(255)
+  method    String?  @db.VarChar(20)
+  timestamp DateTime @default(now())
+
+  @@map("api_logs")
+}
+
+model JwtBlacklist {
+  id        String   @id @default(uuid()) @db.Char(36)
+  jti       String   @unique @db.VarChar(191)
+  userId    String?  @map("user_id") @db.Char(36)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("jwt_blacklist")
+}

@@ -9,6 +9,7 @@ var logger = require('morgan');
 var path = require('node:path');
 var session = require('express-session');
 var methodOverride = require('method-override');
+var db = require('./db');
 
 var app = module.exports = express();
 
@@ -38,8 +39,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // session support
 app.use(session({
-  resave: false, // don't save session if unmodified
-  saveUninitialized: false, // don't create session until something stored
+  resave: false, 
+  saveUninitialized: false,
   secret: 'some secret here'
 }));
 
@@ -90,6 +91,13 @@ app.use(function(req, res, next){
 
 /* istanbul ignore next */
 if (!module.parent) {
-  app.listen(3000);
-  console.log('Express started on port 3000');
+  db.testConnection()
+    .then(function () {
+      app.listen(3000);
+      console.log('Express started on port 3000');
+    })
+    .catch(function (err) {
+      console.error('Failed to connect to database:', err.message);
+      process.exit(1);
+    });
 }
