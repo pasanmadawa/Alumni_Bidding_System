@@ -3,6 +3,10 @@
 exports.index = function(req, res){
   res.json({
     message: 'Alumni bidding system API is running',
+    pages: {
+      auth: '/auth.html',
+      profileEditor: '/profile.html'
+    },
     endpoints: {
       register: 'POST /auth/register',
       verifyEmail: 'GET or POST /auth/verify-email',
@@ -12,6 +16,9 @@ exports.index = function(req, res){
       me: 'GET /auth/me',
       forgotPassword: 'POST /auth/forgot-password',
       resetPassword: 'POST /auth/reset-password',
+      getMyProfile: 'GET /api/profile/me',
+      updateMyProfile: 'PUT /api/profile/me',
+      uploadProfileImage: 'POST /api/profile/me/image',
       users: 'GET /users',
       user: 'GET /user/:user_id',
       updateUser: 'PUT /user/:user_id',

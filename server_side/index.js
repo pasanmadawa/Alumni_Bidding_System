@@ -28,6 +28,7 @@ app.use(cookieParser());
 app.use(methodOverride('_method'));
 
 app.use('/auth', require('./routes/auth'));
+app.use('/api/profile', require('./routes/profile'));
 
 // load controllers
 require('./lib/boot')(app, { verbose: !module.parent });

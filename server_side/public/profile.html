@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Alumni Profile Editor</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <div class="page">
+      <div class="hero">
+        <div>
+          <h1>Complete Alumni Profile</h1>
+          <p>Create and maintain personal information, biography, LinkedIn profile URL, degrees, certifications, licences, short courses, employment history, and profile image upload.</p>
+        </div>
+        <div class="hero-links">
+          <a href="/auth.html">Open Auth Portal</a>
+          <a href="/">API Home</a>
+        </div>
+      </div>
+
+      <div id="profile-status" class="status info">Login first through the auth portal, then load or save your profile here.</div>
+
+      <section class="card stack">
+        <h2>Session</h2>
+        <div><strong>Access Token</strong></div>
+        <div id="profile-access-token" class="mono muted">Not set</div>
+        <div class="actions">
+          <button id="load-profile-button" type="button">Load My Profile</button>
+          <button id="save-profile-button" type="button">Save Full Profile</button>
+        </div>
+      </section>
+
+      <section class="card stack">
+        <h2>Profile Image</h2>
+        <img id="profile-image-preview" class="preview" alt="Profile preview">
+        <label>Select Image <input id="profile-image-input" type="file" accept="image/*"></label>
+        <div class="actions">
+          <button id="upload-image-button" type="button" class="secondary">Upload Image</button>
+        </div>
+      </section>
+
+      <section class="card stack">
+        <h2>Personal Information</h2>
+        <div class="row">
+          <label>First Name <input id="firstName" type="text"></label>
+          <label>Last Name <input id="lastName" type="text"></label>
+          <label>Contact Number <input id="contactNumber" type="text"></label>
+          <label>LinkedIn URL <input id="linkedinUrl" type="url" placeholder="https://www.linkedin.com/in/your-name"></label>
+        </div>
+        <label>Biography <textarea id="bio" placeholder="Write a short professional biography"></textarea></label>
+      </section>
+
+      <section class="card stack">
+        <div class="actions">
+          <h2 style="margin:0; flex:1;">Degrees</h2>
+          <button id="add-degree" type="button" class="secondary">Add Degree</button>
+        </div>
+        <div id="degrees" class="collection"></div>
+      </section>
+
+      <section class="card stack">
+        <div class="actions">
+          <h2 style="margin:0; flex:1;">Professional Certifications</h2>
+          <button id="add-certification" type="button" class="secondary">Add Certification</button>
+        </div>
+        <div id="certifications" class="collection"></div>
+      </section>
+
+      <section class="card stack">
+        <div class="actions">
+          <h2 style="margin:0; flex:1;">Professional Licences</h2>
+          <button id="add-licence" type="button" class="secondary">Add Licence</button>
+        </div>
+        <div id="licences" class="collection"></div>
+      </section>
+
+      <section class="card stack">
+        <div class="actions">
+          <h2 style="margin:0; flex:1;">Short Professional Courses</h2>
+          <button id="add-course" type="button" class="secondary">Add Course</button>
+        </div>
+        <div id="courses" class="collection"></div>
+      </section>
+
+      <section class="card stack">
+        <div class="actions">
+          <h2 style="margin:0; flex:1;">Employment History</h2>
+          <button id="add-employment" type="button" class="secondary">Add Employment</button>
+        </div>
+        <div id="employment" class="collection"></div>
+      </section>
+
+      <section class="card stack">
+        <h2>Last Response</h2>
+        <pre id="profile-response" class="status info">No response yet</pre>
+      </section>
+    </div>
+
+    <script src="/profile-client.js"></script>
+  </body>
+</html>

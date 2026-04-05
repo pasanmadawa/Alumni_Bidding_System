@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Alumni Auth</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <div class="page">
+      <div class="hero">
+        <div>
+          <h1>Alumni Auth Portal</h1>
+          <p>Register, verify email, log in, reset passwords, and move into the browser-based profile editor.</p>
+        </div>
+        <div class="hero-links">
+          <a href="/profile.html">Open Profile Editor</a>
+          <a href="/">API Home</a>
+        </div>
+      </div>
+
+      <div id="auth-status" class="status info">Ready</div>
+
+      <div class="grid two">
+        <section class="card stack">
+          <h2>Register</h2>
+          <label>Email <input id="register-email" type="email" placeholder="student@iit.ac.lk"></label>
+          <label>Password <input id="register-password" type="password" placeholder="Passw0rd!"></label>
+          <label>First Name <input id="register-first-name" type="text" placeholder="Madawa"></label>
+          <label>Last Name <input id="register-last-name" type="text" placeholder="Wijesinghe"></label>
+          <div class="actions">
+            <button id="register-button" type="button">Register</button>
+          </div>
+        </section>
+
+        <section class="card stack">
+          <h2>Verify Email</h2>
+          <label>Verification Token <input id="verify-token" type="text" placeholder="Paste verification token here"></label>
+          <div class="actions">
+            <button id="verify-button" type="button">Verify Email</button>
+          </div>
+        </section>
+
+        <section class="card stack">
+          <h2>Login</h2>
+          <label>Email <input id="login-email" type="email" placeholder="student@iit.ac.lk"></label>
+          <label>Password <input id="login-password" type="password" placeholder="Passw0rd!"></label>
+          <div class="actions">
+            <button id="login-button" type="button">Login</button>
+            <button id="me-button" type="button" class="secondary">Check /auth/me</button>
+          </div>
+        </section>
+
+        <section class="card stack">
+          <h2>Password Reset</h2>
+          <label>Email <input id="forgot-email" type="email" placeholder="student@iit.ac.lk"></label>
+          <div class="actions">
+            <button id="forgot-button" type="button" class="secondary">Request Reset Token</button>
+          </div>
+          <label>Reset Token <input id="reset-token" type="text" placeholder="Paste reset token here"></label>
+          <label>New Password <input id="reset-password" type="password" placeholder="NewPass123!"></label>
+          <div class="actions">
+            <button id="reset-button" type="button">Reset Password</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="card stack">
+        <h2>Stored Tokens</h2>
+        <div><strong>Access Token</strong></div>
+        <div id="access-token" class="mono muted">Not set</div>
+        <div><strong>Refresh Token</strong></div>
+        <div id="refresh-token" class="mono muted">Not set</div>
+        <div class="actions">
+          <button id="refresh-button" type="button" class="secondary">Refresh Access Token</button>
+          <button id="logout-button" type="button" class="danger">Logout</button>
+        </div>
+      </section>
+
+      <section class="card stack">
+        <h2>Last Response</h2>
+        <pre id="auth-response" class="status info">No response yet</pre>
+      </section>
+    </div>
+
+    <script src="/auth-client.js"></script>
+  </body>
+</html>
