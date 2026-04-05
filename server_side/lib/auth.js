@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { prisma } = require('../db');
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
+const ALLOWED_ROLES = ['ALUMNUS', 'ADMIN', 'SPONSOR'];
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -34,6 +35,26 @@ function isUniversityEmail(email) {
   return getAllowedEmailDomains().some(function (allowedDomain) {
     return domain === allowedDomain || domain.endsWith('.' + allowedDomain);
   });
+}
+
+function normalizeRole(role) {
+  const normalizedRole = String(role || 'ALUMNUS').trim().toUpperCase();
+
+  if (!ALLOWED_ROLES.includes(normalizedRole)) {
+    throw new Error('role must be one of ALUMNUS, ADMIN, SPONSOR');
+  }
+
+  return normalizedRole;
+}
+
+function validateEmailForRole(email, role) {
+  const normalizedRole = normalizeRole(role);
+
+  if (normalizedRole === 'SPONSOR') {
+    return true;
+  }
+
+  return isUniversityEmail(email);
 }
 
 function validatePasswordStrength(password) {
@@ -196,6 +217,7 @@ function getRequestBaseUrl(req) {
 }
 
 module.exports = {
+  ALLOWED_ROLES: ALLOWED_ROLES,
   REFRESH_COOKIE_NAME: REFRESH_COOKIE_NAME,
   blacklistAccessTokenPayload: blacklistAccessTokenPayload,
   clearRefreshTokenCookie: clearRefreshTokenCookie,
@@ -207,10 +229,12 @@ module.exports = {
   getRequestBaseUrl: getRequestBaseUrl,
   hashOpaqueToken: hashOpaqueToken,
   isUniversityEmail: isUniversityEmail,
+  normalizeRole: normalizeRole,
   normalizeEmail: normalizeEmail,
   revokeRefreshSession: revokeRefreshSession,
   setRefreshTokenCookie: setRefreshTokenCookie,
   signAccessToken: signAccessToken,
+  validateEmailForRole: validateEmailForRole,
   validatePasswordStrength: validatePasswordStrength,
   verifyAccessToken: verifyAccessToken
 };

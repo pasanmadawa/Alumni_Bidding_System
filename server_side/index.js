@@ -10,6 +10,7 @@ var path = require('node:path');
 var cookieParser = require('cookie-parser');
 var methodOverride = require('method-override');
 var db = require('./db');
+var bidding = require('./lib/bidding');
 
 var app = module.exports = express();
 
@@ -29,6 +30,10 @@ app.use(methodOverride('_method'));
 
 app.use('/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
+app.use('/api/bids', require('./routes/bidding'));
+app.use('/api/alumni', require('./routes/alumni'));
+
+bidding.startBiddingScheduler();
 
 // load controllers
 require('./lib/boot')(app, { verbose: !module.parent });

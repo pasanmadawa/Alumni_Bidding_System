@@ -8,6 +8,7 @@ const { body, validationResult } = require('express-validator');
 
 const { prisma } = require('../db');
 const {
+  ALLOWED_ROLES,
   blacklistAccessTokenPayload,
   clearRefreshTokenCookie,
   createRefreshSession,
@@ -17,11 +18,12 @@ const {
   getBearerToken,
   getRequestBaseUrl,
   hashOpaqueToken,
-  isUniversityEmail,
   normalizeEmail,
+  normalizeRole,
   revokeRefreshSession,
   setRefreshTokenCookie,
   signAccessToken,
+  validateEmailForRole,
   validatePasswordStrength
 } = require('../lib/auth');
 const { sendPasswordResetEmail, sendVerificationEmail } = require('../lib/mailer');
@@ -103,18 +105,24 @@ async function verifyEmailToken(token) {
   }
 
   const createdUser = await prisma.$transaction(async function (tx) {
-    const user = await tx.user.create({
-      data: {
-        email: pendingRegistration.email,
-        passwordHash: pendingRegistration.passwordHash,
-        emailVerified: true,
-        profile: {
-          create: {
-            firstName: pendingRegistration.firstName,
-            lastName: pendingRegistration.lastName
-          }
+    const userData = {
+      email: pendingRegistration.email,
+      passwordHash: pendingRegistration.passwordHash,
+      emailVerified: true,
+      role: pendingRegistration.role
+    };
+
+    if (pendingRegistration.role === 'ALUMNUS') {
+      userData.profile = {
+        create: {
+          firstName: pendingRegistration.firstName,
+          lastName: pendingRegistration.lastName
         }
-      },
+      };
+    }
+
+    const user = await tx.user.create({
+      data: userData,
       include: {
         profile: true
       }
@@ -137,6 +145,7 @@ router.post(
   [
     body('email').isEmail().withMessage('Valid email is required'),
     body('password').isString().withMessage('Password is required'),
+    body('role').optional().isString().withMessage('Role must be a string'),
     body('firstName').optional().isLength({ max: 100 }),
     body('lastName').optional().isLength({ max: 100 })
   ],
@@ -147,12 +156,13 @@ router.post(
     try {
       const email = normalizeEmail(req.body.email);
       const password = req.body.password;
+      const role = normalizeRole(req.body.role || 'ALUMNUS');
       const passwordError = validatePasswordStrength(password);
 
-      if (!isUniversityEmail(email)) {
+      if (!validateEmailForRole(email, role)) {
         return res.status(400).json({
           error: 'Validation Error',
-          message: 'A university email address is required'
+          message: role + ' accounts must use a university email address'
         });
       }
 
@@ -189,6 +199,7 @@ router.post(
           passwordHash: passwordHash,
           firstName: req.body.firstName || null,
           lastName: req.body.lastName || null,
+          role: role,
           verificationToken: verificationTokenHash,
           expiresAt: verificationExpiresAt
         },
@@ -197,6 +208,7 @@ router.post(
           passwordHash: passwordHash,
           firstName: req.body.firstName || null,
           lastName: req.body.lastName || null,
+          role: role,
           verificationToken: verificationTokenHash,
           expiresAt: verificationExpiresAt
         }
@@ -221,11 +233,20 @@ router.post(
         pendingRegistration: {
           id: pendingRegistration.id,
           email: pendingRegistration.email,
+          role: pendingRegistration.role,
           expiresAt: pendingRegistration.expiresAt
         },
         devVerificationToken: mailResult.simulated ? verificationToken : undefined
       });
     } catch (error) {
+      if (error.message && error.message.includes('role must be one of')) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: error.message,
+          allowedRoles: ALLOWED_ROLES
+        });
+      }
+
       next(error);
     }
   }
@@ -293,7 +314,8 @@ router.post(
   '/login',
   [
     body('email').isEmail().withMessage('Valid email is required'),
-    body('password').isString().withMessage('Password is required')
+    body('password').isString().withMessage('Password is required'),
+    body('role').optional().isString().withMessage('Role must be a string')
   ],
   async function login(req, res, next) {
     const validationResponse = handleValidationErrors(req, res);
@@ -302,6 +324,7 @@ router.post(
     try {
       const email = normalizeEmail(req.body.email);
       const password = req.body.password;
+      const requestedRole = req.body.role ? normalizeRole(req.body.role) : null;
       const user = await prisma.user.findUnique({
         where: {
           email: email
@@ -327,6 +350,13 @@ router.post(
         });
       }
 
+      if (requestedRole && user.role !== requestedRole) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'This account is registered as ' + user.role + ', not ' + requestedRole
+        });
+      }
+
       if (!user.emailVerified) {
         return res.status(403).json({
           error: 'Forbidden',
@@ -347,6 +377,14 @@ router.post(
         user: buildUserResponse(user)
       });
     } catch (error) {
+      if (error.message && error.message.includes('role must be one of')) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: error.message,
+          allowedRoles: ALLOWED_ROLES
+        });
+      }
+
       next(error);
     }
   }

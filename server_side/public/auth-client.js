@@ -60,6 +60,7 @@
       const data = await api('/auth/register', {
         method: 'POST',
         body: {
+          role: document.getElementById('register-role').value,
           email: document.getElementById('register-email').value,
           password: document.getElementById('register-password').value,
           firstName: document.getElementById('register-first-name').value,
@@ -100,6 +101,7 @@
       const data = await api('/auth/login', {
         method: 'POST',
         body: {
+          role: document.getElementById('login-role').value,
           email: document.getElementById('login-email').value,
           password: document.getElementById('login-password').value
         }

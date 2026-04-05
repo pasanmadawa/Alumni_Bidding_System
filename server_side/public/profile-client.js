@@ -1,6 +1,7 @@
 (function () {
   const state = {
-    accessToken: localStorage.getItem('accessToken') || ''
+    accessToken: localStorage.getItem('accessToken') || '',
+    currentUser: null
   };
 
   const sectionConfigs = {
@@ -46,6 +47,24 @@
 
   function syncSessionDisplay() {
     document.getElementById('profile-access-token').textContent = state.accessToken || 'Not set';
+    document.getElementById('profile-email').textContent = state.currentUser && state.currentUser.email || 'Not set';
+    document.getElementById('profile-role').textContent = state.currentUser && state.currentUser.role || 'Not set';
+  }
+
+  function isAlumnus() {
+    return state.currentUser && state.currentUser.role === 'ALUMNUS';
+  }
+
+  function applyRoleView() {
+    const alumnus = isAlumnus();
+    document.getElementById('display-name-label').style.display = alumnus ? 'none' : '';
+    document.getElementById('first-name-label').style.display = alumnus ? '' : 'none';
+    document.getElementById('last-name-label').style.display = alumnus ? '' : 'none';
+    document.getElementById('profile-details-heading').textContent = alumnus ? 'Alumni Details' : 'Sponsor Details';
+
+    Array.from(document.querySelectorAll('.alumni-only-section')).forEach(function (el) {
+      el.style.display = alumnus ? '' : 'none';
+    });
   }
 
   async function api(path, options) {
@@ -140,10 +159,12 @@
   }
 
   function populateProfile(profile) {
+    document.getElementById('displayName').value = profile && profile.displayName || '';
     document.getElementById('firstName').value = profile && profile.firstName || '';
     document.getElementById('lastName').value = profile && profile.lastName || '';
     document.getElementById('contactNumber').value = profile && profile.contactNumber || '';
     document.getElementById('linkedinUrl').value = profile && profile.linkedinUrl || '';
+    document.getElementById('profilePageUrl').value = profile && profile.profilePageUrl || '';
     document.getElementById('bio').value = profile && profile.bio || '';
 
     const image = document.getElementById('profile-image-preview');
@@ -152,15 +173,19 @@
 
     ['degrees', 'certifications', 'licences', 'courses', 'employment'].forEach(function (section) {
       clearSection(section);
-      const items = profile && profile[section] ? profile[section] : [];
-      if (items.length) {
-        items.forEach(function (item) {
-          addItem(section, item);
-        });
-      } else {
-        addItem(section, {});
+      if (isAlumnus()) {
+        const items = profile && profile[section] ? profile[section] : [];
+        if (items.length) {
+          items.forEach(function (item) {
+            addItem(section, item);
+          });
+        } else {
+          addItem(section, {});
+        }
       }
     });
+
+    applyRoleView();
   }
 
   document.getElementById('load-profile-button').addEventListener('click', async function () {
@@ -169,6 +194,8 @@
       state.accessToken = localStorage.getItem('accessToken') || '';
       syncSessionDisplay();
       const data = await api('/api/profile/me');
+      state.currentUser = data.user || null;
+      syncSessionDisplay();
       populateProfile(data.profile);
       setStatus('Profile loaded successfully', 'success');
       showResponse(data, 'success');
@@ -184,10 +211,12 @@
       state.accessToken = localStorage.getItem('accessToken') || '';
       syncSessionDisplay();
       const payload = {
+        displayName: document.getElementById('displayName').value,
         firstName: document.getElementById('firstName').value,
         lastName: document.getElementById('lastName').value,
         contactNumber: document.getElementById('contactNumber').value,
         linkedinUrl: document.getElementById('linkedinUrl').value,
+        profilePageUrl: document.getElementById('profilePageUrl').value,
         bio: document.getElementById('bio').value,
         degrees: collectSection('degrees'),
         certifications: collectSection('certifications'),
@@ -241,5 +270,6 @@
   document.getElementById('add-employment').addEventListener('click', function () { addItem('employment', {}); });
 
   syncSessionDisplay();
+  applyRoleView();
   populateProfile(null);
 })();

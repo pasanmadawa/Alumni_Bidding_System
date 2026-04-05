@@ -36,6 +36,7 @@ model PendingRegistration {
   passwordHash      String   @map("password_hash") @db.VarChar(255)
   firstName         String?  @map("first_name") @db.VarChar(100)
   lastName          String?  @map("last_name") @db.VarChar(100)
+  role              String   @default("ALUMNUS") @db.VarChar(20)
   verificationToken String   @map("verification_token") @db.VarChar(255)
   expiresAt         DateTime @map("expires_at")
   createdAt         DateTime @default(now()) @map("created_at")
@@ -87,11 +88,13 @@ model PasswordResetToken {
 model Profile {
   id            String   @id @default(uuid()) @db.Char(36)
   userId        String?  @unique @map("user_id") @db.Char(36)
+  displayName   String?  @map("display_name") @db.VarChar(191)
   firstName     String?  @map("first_name") @db.VarChar(100)
   lastName      String?  @map("last_name") @db.VarChar(100)
   bio           String?  @db.Text
   contactNumber String?  @map("contact_number") @db.VarChar(50)
   linkedinUrl   String?  @map("linkedin_url") @db.VarChar(255)
+  profilePageUrl String? @map("profile_page_url") @db.VarChar(255)
   profileImage  String?  @map("profile_image") @db.VarChar(255)
   createdAt     DateTime @default(now()) @map("created_at")
 
