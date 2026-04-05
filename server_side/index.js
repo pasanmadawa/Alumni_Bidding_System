@@ -7,29 +7,11 @@
 var express = require('express');
 var logger = require('morgan');
 var path = require('node:path');
-var session = require('express-session');
+var cookieParser = require('cookie-parser');
 var methodOverride = require('method-override');
 var db = require('./db');
 
 var app = module.exports = express();
-
-// set our default template engine to "ejs"
-// which prevents the need for using file extensions
-app.set('view engine', 'ejs');
-
-// set views for error and 404 pages
-app.set('views', path.join(__dirname, 'views'));
-
-// define a custom res.message() method
-// which stores messages in the session
-app.response.message = function(msg){
-  // reference `req.session` via the `this.req` reference
-  var sess = this.req.session;
-  // simply add the msg to an array for later
-  sess.messages = sess.messages || [];
-  sess.messages.push(msg);
-  return this;
-};
 
 // log
 if (!module.parent) app.use(logger('dev'));
@@ -37,41 +19,15 @@ if (!module.parent) app.use(logger('dev'));
 // serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// session support
-app.use(session({
-  resave: false, 
-  saveUninitialized: false,
-  secret: 'some secret here'
-}));
-
 // parse request bodies (req.body)
 app.use(express.urlencoded({ extended: true }))
+app.use(express.json());
+app.use(cookieParser());
 
 // allow overriding methods in query (?_method=put)
 app.use(methodOverride('_method'));
 
-// expose the "messages" local variable when views are rendered
-app.use(function(req, res, next){
-  var msgs = req.session.messages || [];
-
-  // expose "messages" local variable
-  res.locals.messages = msgs;
-
-  // expose "hasMessages"
-  res.locals.hasMessages = !! msgs.length;
-
-  /* This is equivalent:
-   res.locals({
-     messages: msgs,
-     hasMessages: !! msgs.length
-   });
-  */
-
-  next();
-  // empty or "flush" the messages so they
-  // don't build up
-  req.session.messages = [];
-});
+app.use('/auth', require('./routes/auth'));
 
 // load controllers
 require('./lib/boot')(app, { verbose: !module.parent });
@@ -80,13 +36,19 @@ app.use(function(err, req, res, next){
   // log it
   if (!module.parent) console.error(err.stack);
 
-  // error page
-  res.status(500).render('5xx');
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err && err.message ? err.message : 'Unexpected server error'
+  });
 });
 
 // assume 404 since no middleware responded
 app.use(function(req, res, next){
-  res.status(404).render('404', { url: req.originalUrl });
+  res.status(404).json({
+    error: 'Not Found',
+    message: 'Route not found',
+    url: req.originalUrl
+  });
 });
 
 /* istanbul ignore next */

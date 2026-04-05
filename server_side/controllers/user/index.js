@@ -6,8 +6,6 @@
 
 var db = require('../../db');
 
-exports.engine = 'hbs';
-
 exports.before = function(req, res, next){
   var id = req.params.user_id;
   if (!id) return next();
@@ -22,20 +20,32 @@ exports.before = function(req, res, next){
 };
 
 exports.list = function(req, res, next){
-  res.render('list', { users: db.users });
-};
-
-exports.edit = function(req, res, next){
-  res.render('edit', { user: req.user });
+  res.json({
+    users: db.users
+  });
 };
 
 exports.show = function(req, res, next){
-  res.render('show', { user: req.user });
+  res.json({
+    user: req.user
+  });
 };
 
 exports.update = function(req, res, next){
   var body = req.body;
-  req.user.name = body.user.name;
-  res.message('Information updated!');
-  res.redirect('/user/' + req.user.id);
+  var name = body.name || (body.user && body.user.name);
+
+  if (!name) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'User name is required'
+    });
+  }
+
+  req.user.name = name;
+
+  res.json({
+    message: 'User updated successfully',
+    user: req.user
+  });
 };

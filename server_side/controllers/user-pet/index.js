@@ -14,9 +14,21 @@ exports.create = function(req, res, next){
   var user = db.users[id];
   var body = req.body;
   if (!user) return next('route');
-  var pet = { name: body.pet.name };
+  var name = body.name || (body.pet && body.pet.name);
+
+  if (!name) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Pet name is required'
+    });
+  }
+
+  var pet = { name: name };
   pet.id = db.pets.push(pet) - 1;
   user.pets.push(pet);
-  res.message('Added pet ' + body.pet.name);
-  res.redirect('/user/' + id);
+  res.status(201).json({
+    message: 'Pet added successfully',
+    user: user,
+    pet: pet
+  });
 };

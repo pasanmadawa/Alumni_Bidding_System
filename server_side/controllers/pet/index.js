@@ -6,8 +6,6 @@
 
 var db = require('../../db');
 
-exports.engine = 'ejs';
-
 exports.before = function(req, res, next){
   var pet = db.pets[req.params.pet_id];
   if (!pet) return next('route');
@@ -16,16 +14,26 @@ exports.before = function(req, res, next){
 };
 
 exports.show = function(req, res, next){
-  res.render('show', { pet: req.pet });
-};
-
-exports.edit = function(req, res, next){
-  res.render('edit', { pet: req.pet });
+  res.json({
+    pet: req.pet
+  });
 };
 
 exports.update = function(req, res, next){
   var body = req.body;
-  req.pet.name = body.pet.name;
-  res.message('Information updated!');
-  res.redirect('/pet/' + req.pet.id);
+  var name = body.name || (body.pet && body.pet.name);
+
+  if (!name) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Pet name is required'
+    });
+  }
+
+  req.pet.name = name;
+
+  res.json({
+    message: 'Pet updated successfully',
+    pet: req.pet
+  });
 };
