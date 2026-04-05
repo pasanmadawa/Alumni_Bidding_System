@@ -23,7 +23,6 @@ function buildAlumnusResponse(user) {
       ? user.bids.map(function (bid) {
           return {
             id: bid.id,
-            amount: Number(bid.amount),
             status: bid.status,
             bidDate: bid.bidDate,
             bidMonth: bid.bidMonth,

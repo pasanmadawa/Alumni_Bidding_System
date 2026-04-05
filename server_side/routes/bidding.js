@@ -5,7 +5,9 @@ const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { authorizeRoles } = require('../middleware/authorization');
 const {
+  cancelBid,
   getCurrentBidReveal,
+  getBidHistory,
   getFeaturedProfile,
   getMyBidFeedback,
   grantMonthlyEventCredit,
@@ -32,6 +34,7 @@ function isValidationError(error) {
         error.message.includes('closed') ||
         error.message.includes('only be placed') ||
         error.message.includes('only be increased') ||
+        error.message.includes('only be cancelled') ||
         error.message.includes('No existing bid found') ||
         error.message.includes('Use the increase bid endpoint')
       )
@@ -100,6 +103,16 @@ router.get('/me', requireAlumnus, async function getMyBid(req, res, next) {
   }
 });
 
+router.get('/history', requireAlumnus, async function getMyBidHistory(req, res, next) {
+  try {
+    const history = await getBidHistory(req.currentUser.id);
+
+    res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/me', requireAlumnus, async function placeMyBid(req, res, next) {
   try {
     const feedback = await placeOrUpdateBid(req.currentUser.id, req.body);
@@ -135,6 +148,36 @@ router.put('/me/increase', requireAlumnus, async function increaseMyBid(req, res
       targetFeaturedDate: feedback.targetFeaturedDate,
       featuredSelected: feedback.featuredSelected,
       monthlyLimit: feedback.monthlyLimit
+    });
+  } catch (error) {
+    if (isValidationError(error)) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: error.message
+      });
+    }
+
+    next(error);
+  }
+});
+
+router.delete('/me', requireAlumnus, async function cancelMyBid(req, res, next) {
+  try {
+    const targetDate = req.query.targetFeaturedDate || (req.body && req.body.targetFeaturedDate);
+
+    if (!targetDate) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'targetFeaturedDate is required'
+      });
+    }
+
+    const result = await cancelBid(req.currentUser.id, targetDate);
+
+    res.json({
+      message: 'Bid cancelled successfully',
+      targetFeaturedDate: result.targetFeaturedDate,
+      cancelledBidId: result.cancelledBidId
     });
   } catch (error) {
     if (isValidationError(error)) {

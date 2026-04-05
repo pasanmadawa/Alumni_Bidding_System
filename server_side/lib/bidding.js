@@ -62,6 +62,46 @@ function formatDateOnly(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function buildAlumnusDisplayName(user) {
+  if (!user) return null;
+  const profile = user.profile || {};
+  const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
+
+  return fullName || profile.displayName || user.email || null;
+}
+
+function buildWinnerItems(profile) {
+  const items = [];
+
+  (profile && Array.isArray(profile.certifications) ? profile.certifications : []).forEach(function (item) {
+    items.push({
+      type: 'CERTIFICATION',
+      name: item.name
+    });
+  });
+
+  (profile && Array.isArray(profile.courses) ? profile.courses : []).forEach(function (item) {
+    items.push({
+      type: 'COURSE',
+      name: item.name
+    });
+  });
+
+  return items;
+}
+
+function buildWinnerRevealPayload(featured) {
+  if (!featured || !featured.user) {
+    return null;
+  }
+
+  return {
+    alumnusName: buildAlumnusDisplayName(featured.user),
+    featuredDate: featured.featuredDate,
+    items: buildWinnerItems(featured.user.profile)
+  };
+}
+
 function getTodayDate(timeZone) {
   const parts = getDatePartsInTimeZone(new Date(), timeZone || DEFAULT_SELECTION_TIMEZONE);
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
@@ -350,12 +390,74 @@ async function increaseBid(userId, payload) {
   });
 }
 
+async function cancelBid(userId, targetDateInput) {
+  const targetDate = parseDateOnly(targetDateInput, 'targetFeaturedDate');
+  const today = getTodayDate(DEFAULT_SELECTION_TIMEZONE);
+
+  if (targetDate < today) {
+    throw new Error('Bids can only be cancelled for today or a future date');
+  }
+
+  return prisma.$transaction(async function (tx) {
+    const existingFeatured = await getFeaturedRecordByDate(tx, targetDate);
+
+    if (existingFeatured && existingFeatured.winningBidId) {
+      throw new Error('Bidding is already closed for this featured date');
+    }
+
+    const existingBid = await findExistingBid(tx, userId, targetDate);
+
+    if (!existingBid) {
+      throw new Error('No existing bid found for this featured date');
+    }
+
+    await tx.bid.delete({
+      where: {
+        id: existingBid.id
+      }
+    });
+
+    await refreshLiveStatuses(tx, targetDate);
+
+    return {
+      targetFeaturedDate: formatDateOnly(targetDate),
+      cancelledBidId: existingBid.id
+    };
+  });
+}
+
 async function getMyBidFeedback(userId, targetDateInput) {
   const targetDate = parseDateOnly(targetDateInput, 'targetFeaturedDate');
 
   return prisma.$transaction(async function (tx) {
     return buildBidFeedback(tx, userId, targetDate);
   });
+}
+
+async function getBidHistory(userId) {
+  const bids = await prisma.bid.findMany({
+    where: {
+      userId: userId
+    },
+    orderBy: [
+      { targetFeaturedDate: 'desc' },
+      { bidDate: 'desc' }
+    ]
+  });
+
+  return {
+    bids: bids.map(function (bid) {
+      return {
+        id: bid.id,
+        amount: Number(bid.amount),
+        status: bid.status,
+        bidDate: bid.bidDate,
+        bidMonth: bid.bidMonth,
+        bidYear: bid.bidYear,
+        targetFeaturedDate: bid.targetFeaturedDate
+      };
+    })
+  };
 }
 
 async function getFeaturedProfile(targetDateInput) {
@@ -393,14 +495,7 @@ async function getFeaturedProfile(targetDateInput) {
 
   return {
     targetFeaturedDate: formatDateOnly(targetDate),
-    featured: {
-      userId: featured.user.id,
-      email: featured.user.email,
-      profile: featured.user.profile,
-      featuredDate: featured.featuredDate,
-      winningBidAmount: featured.alumniPayoutAmount === null ? null : Number(featured.alumniPayoutAmount),
-      winningBidId: featured.winningBidId
-    }
+    featured: buildWinnerRevealPayload(featured)
   };
 }
 
@@ -434,28 +529,15 @@ async function getCurrentBidReveal(targetDateInput) {
     return {
       targetFeaturedDate: formatDateOnly(targetDate),
       revealed: false,
-      message: 'Highest bid has not been revealed yet for this date',
+      message: 'Winning alumnus has not been revealed yet for this date',
       winner: null
     };
   }
 
-  const winningBid = await prisma.bid.findUnique({
-    where: {
-      id: featured.winningBidId
-    }
-  });
-
   return {
     targetFeaturedDate: formatDateOnly(targetDate),
     revealed: true,
-    winner: {
-      userId: featured.user.id,
-      email: featured.user.email,
-      profile: featured.user.profile,
-      highestBid: winningBid ? Number(winningBid.amount) : null,
-      bidStatus: winningBid ? winningBid.status : null,
-      featuredDate: featured.featuredDate
-    }
+    winner: buildWinnerRevealPayload(featured)
   };
 }
 
@@ -688,7 +770,9 @@ module.exports = {
   DEFAULT_MONTHLY_FEATURE_LIMIT: DEFAULT_MONTHLY_FEATURE_LIMIT,
   DEFAULT_SELECTION_CRON: DEFAULT_SELECTION_CRON,
   DEFAULT_SELECTION_TIMEZONE: DEFAULT_SELECTION_TIMEZONE,
+  cancelBid: cancelBid,
   getCurrentBidReveal: getCurrentBidReveal,
+  getBidHistory: getBidHistory,
   getFeaturedProfile: getFeaturedProfile,
   increaseBid: increaseBid,
   getMyBidFeedback: getMyBidFeedback,
