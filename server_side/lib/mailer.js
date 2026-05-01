@@ -81,11 +81,29 @@ async function sendVerificationEmail(options) {
     to: options.to,
     subject: 'Verify your alumni account',
     text:
-      'Verify your email by opening this link: ' + verifyUrl + '\n\n' +
-      'If you are testing with Postman, you can also call GET /auth/verify-email?token=' + options.token,
+      'Your Alumni Club verification OTP is: ' + options.token + '\n\n' +
+      'This code expires in 24 hours.\n\n' +
+      'You can also verify your email by opening this link: ' + verifyUrl,
     html:
-      '<p>Verify your email by opening this link:</p>' +
+      '<p>Your Alumni Club verification OTP is:</p>' +
+      '<p style="font-size:24px;font-weight:bold;letter-spacing:4px;">' + options.token + '</p>' +
+      '<p>This code expires in 24 hours.</p>' +
+      '<p>You can also verify your email by opening this link:</p>' +
       '<p><a href="' + verifyUrl + '">' + verifyUrl + '</a></p>'
+  });
+}
+
+async function sendLoginOtpEmail(options) {
+  return sendMail({
+    to: options.to,
+    subject: 'Your Alumni Club login OTP',
+    text:
+      'Your Alumni Club login OTP is: ' + options.otp + '\n\n' +
+      'This code expires in 10 minutes.',
+    html:
+      '<p>Your Alumni Club login OTP is:</p>' +
+      '<p style="font-size:24px;font-weight:bold;letter-spacing:4px;">' + options.otp + '</p>' +
+      '<p>This code expires in 10 minutes.</p>'
   });
 }
 
@@ -94,17 +112,18 @@ async function sendPasswordResetEmail(options) {
     to: options.to,
     subject: 'Reset your alumni account password',
     text:
-      'Use this reset token in POST /auth/reset-password:\n\n' + options.token + '\n\n' +
-      'Example JSON body:\n' +
-      '{ "token": "' + options.token + '", "newPassword": "NewPass123!" }',
+      'Your Alumni Club password reset OTP is: ' + options.token + '\n\n' +
+      'This code expires in 1 hour.',
     html:
-      '<p>Use this reset token in <code>POST /auth/reset-password</code>:</p>' +
-      '<p><strong>' + options.token + '</strong></p>'
+      '<p>Your Alumni Club password reset OTP is:</p>' +
+      '<p style="font-size:24px;font-weight:bold;letter-spacing:4px;">' + options.token + '</p>' +
+      '<p>This code expires in 1 hour.</p>'
   });
 }
 
 module.exports = {
   sendMail: sendMail,
+  sendLoginOtpEmail: sendLoginOtpEmail,
   sendPasswordResetEmail: sendPasswordResetEmail,
   sendVerificationEmail: sendVerificationEmail
 };

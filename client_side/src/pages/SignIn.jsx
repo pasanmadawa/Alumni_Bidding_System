@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../lib/api.js'
+import OtpDialog from '../components/OtpDialog.jsx'
 
 const roleOptions = [
   { value: 'ALUMNUS', label: 'Alumnus' },
@@ -16,9 +17,17 @@ function SignIn() {
     password: '',
     role: 'ALUMNUS',
   })
+  const [showPassword, setShowPassword] = useState(false)
   const [authState, setAuthState] = useState({
     loading: false,
     message: '',
+    error: '',
+  })
+  const [otpState, setOtpState] = useState({
+    open: false,
+    loading: false,
+    otp: '',
+    devOtp: '',
     error: '',
   })
 
@@ -54,10 +63,17 @@ function SignIn() {
         throw new Error(result.message || 'Sign up failed. Please check your details.')
       }
 
-      navigate('/login', {
-        state: {
-          message: result.message || 'Registration successful. Please verify your email.',
-        },
+      setOtpState({
+        open: true,
+        loading: false,
+        otp: '',
+        devOtp: result.devVerificationToken || '',
+        error: '',
+      })
+      setAuthState({
+        loading: false,
+        message: result.message || 'Registration successful. Please verify your email.',
+        error: '',
       })
     } catch (error) {
       setAuthState({
@@ -65,6 +81,39 @@ function SignIn() {
         message: '',
         error: error.message,
       })
+    }
+  }
+
+  async function handleOtpSubmit(event) {
+    event.preventDefault()
+
+    setOtpState((current) => ({ ...current, loading: true, error: '' }))
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token: otpState.otp }),
+      })
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.message || 'OTP verification failed.')
+      }
+
+      navigate('/login', {
+        state: {
+          message: result.message || 'Email verified. You can sign in now.',
+        },
+      })
+    } catch (error) {
+      setOtpState((current) => ({
+        ...current,
+        loading: false,
+        error: error.message,
+      }))
     }
   }
 
@@ -127,15 +176,25 @@ function SignIn() {
 
         <label>
           Password
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={updateField}
-            placeholder="Enter your password"
-            autoComplete="new-password"
-            required
-          />
+          <span className="password-field">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              name="password"
+              value={formData.password}
+              onChange={updateField}
+              placeholder="Enter your password"
+              autoComplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword((current) => !current)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </span>
         </label>
 
         <label>
@@ -164,6 +223,20 @@ function SignIn() {
         <p className="status status-success">
           {authState.message}
         </p>
+      )}
+
+      {otpState.open && (
+        <OtpDialog
+          title="Enter signup OTP"
+          description="We sent a 6-digit verification code to your email address."
+          otp={otpState.otp}
+          devOtp={otpState.devOtp}
+          loading={otpState.loading}
+          error={otpState.error}
+          onChange={(event) => setOtpState((current) => ({ ...current, otp: event.target.value }))}
+          onClose={() => setOtpState((current) => ({ ...current, open: false }))}
+          onSubmit={handleOtpSubmit}
+        />
       )}
     </section>
   )

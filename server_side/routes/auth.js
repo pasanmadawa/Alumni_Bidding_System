@@ -26,10 +26,11 @@ const {
   validateEmailForRole,
   validatePasswordStrength
 } = require('../lib/auth');
-const { sendPasswordResetEmail, sendVerificationEmail } = require('../lib/mailer');
+const { sendLoginOtpEmail, sendPasswordResetEmail, sendVerificationEmail } = require('../lib/mailer');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
+const loginOtpChallenges = new Map();
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -53,6 +54,46 @@ function buildUserResponse(user) {
     createdAt: user.createdAt,
     profile: user.profile || null
   };
+}
+
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function createLoginOtpChallenge(userId, otp) {
+  const challengeId = generateOpaqueToken();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  loginOtpChallenges.set(challengeId, {
+    userId: userId,
+    otpHash: hashOpaqueToken(otp),
+    expiresAt: expiresAt
+  });
+
+  return {
+    challengeId: challengeId,
+    expiresAt: expiresAt
+  };
+}
+
+function consumeLoginOtpChallenge(challengeId, otp) {
+  const challenge = loginOtpChallenges.get(challengeId);
+
+  if (!challenge) {
+    return null;
+  }
+
+  if (challenge.expiresAt <= new Date()) {
+    loginOtpChallenges.delete(challengeId);
+    return null;
+  }
+
+  if (challenge.otpHash !== hashOpaqueToken(otp)) {
+    return null;
+  }
+
+  loginOtpChallenges.delete(challengeId);
+  return challenge;
 }
 
 function handleValidationErrors(req, res) {
@@ -187,7 +228,7 @@ router.post(
       }
 
       const passwordHash = await bcrypt.hash(password, 12);
-      const verificationToken = generateOpaqueToken();
+      const verificationToken = generateOtp();
       const verificationTokenHash = hashOpaqueToken(verificationToken);
       const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -355,6 +396,62 @@ router.post(
         });
       }
 
+      const otp = generateOtp();
+      const challenge = createLoginOtpChallenge(user.id, otp);
+      const mailResult = await sendLoginOtpEmail({
+        to: user.email,
+        otp: otp
+      });
+
+      return res.json({
+        message: 'OTP sent to your email. Please verify to complete login.',
+        requiresOtp: true,
+        challengeId: challenge.challengeId,
+        expiresAt: challenge.expiresAt,
+        devOtp: mailResult.simulated ? otp : undefined
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  '/login/verify-otp',
+  [
+    body('challengeId').isString().withMessage('Challenge ID is required'),
+    body('otp').isString().withMessage('OTP is required')
+  ],
+  async function verifyLoginOtp(req, res, next) {
+    const validationResponse = handleValidationErrors(req, res);
+    if (validationResponse) return;
+
+    try {
+      const challenge = consumeLoginOtpChallenge(req.body.challengeId, req.body.otp);
+
+      if (!challenge) {
+        return res.status(400).json({
+          error: 'Invalid OTP',
+          message: 'OTP is invalid or expired'
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          id: challenge.userId
+        },
+        include: {
+          profile: true
+        }
+      });
+
+      if (!user) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'User does not exist'
+        });
+      }
+
       const accessToken = signAccessToken(user);
       const refreshSession = await createRefreshSession(user.id);
 
@@ -464,7 +561,7 @@ router.post(
         });
       }
 
-      const resetToken = generateOpaqueToken();
+      const resetToken = generateOtp();
       const resetTokenHash = hashOpaqueToken(resetToken);
       const resetExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
@@ -495,6 +592,43 @@ router.post(
       return res.json({
         message: 'If the email exists, a password reset message has been sent',
         devResetToken: mailResult.simulated ? resetToken : undefined
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  '/reset-password/verify-otp',
+  [
+    body('token').isString().withMessage('Reset OTP is required')
+  ],
+  async function verifyPasswordResetOtp(req, res, next) {
+    const validationResponse = handleValidationErrors(req, res);
+    if (validationResponse) return;
+
+    try {
+      const resetTokenHash = hashOpaqueToken(req.body.token);
+      const resetRecord = await prisma.passwordResetToken.findFirst({
+        where: {
+          token: resetTokenHash,
+          used: false,
+          expiresAt: {
+            gt: new Date()
+          }
+        }
+      });
+
+      if (!resetRecord) {
+        return res.status(400).json({
+          error: 'Invalid OTP',
+          message: 'Reset OTP is invalid or expired'
+        });
+      }
+
+      return res.json({
+        message: 'OTP verified. You can reset your password now.'
       });
     } catch (error) {
       next(error);

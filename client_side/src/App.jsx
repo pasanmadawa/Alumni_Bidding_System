@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
 import AuthTools from './pages/AuthTools.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import Details from './pages/Details.jsx'
 import Login from './pages/Login.jsx'
 import SignIn from './pages/SignIn.jsx'
 
@@ -37,6 +38,7 @@ function AuthPage({ children }) {
 function App() {
   return (
     <Routes>
+      <Route path="/" element={<Details />} />
       <Route
         path="/login"
         element={(
@@ -77,10 +79,11 @@ function App() {
           </AuthPage>
         )}
       />
-      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/dashboard" element={<Dashboard view="home" />} />
+      <Route path="/profile" element={<Dashboard view="profile" />} />
+      <Route path="/bids" element={<Dashboard view="bids" />} />
       <Route path="/sign-in" element={<Navigate to="/login" replace />} />
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

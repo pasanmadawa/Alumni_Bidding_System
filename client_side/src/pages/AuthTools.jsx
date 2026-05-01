@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import OtpDialog from '../components/OtpDialog.jsx'
 import { apiRequest } from '../lib/api.js'
 
 function AuthTools({ mode }) {
@@ -10,19 +11,36 @@ function AuthTools({ mode }) {
     email: '',
     token: params.get('token') || '',
     newPassword: '',
+    confirmPassword: '',
   })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [state, setState] = useState({ loading: false, message: '', error: '', devToken: '' })
+  const [otpState, setOtpState] = useState({
+    open: false,
+    loading: false,
+    otp: '',
+    devOtp: '',
+    error: '',
+  })
+
+  useEffect(() => {
+    setFormData((current) => ({
+      ...current,
+      token: new URLSearchParams(location.search).get('token') || '',
+    }))
+  }, [location.search])
 
   const copy = {
     forgot: {
       title: 'Forgot password',
-      intro: 'Request a password reset token.',
-      button: 'Send reset token',
+      intro: 'Request a password reset OTP.',
+      button: 'Send OTP',
     },
     reset: {
       title: 'Reset password',
-      intro: 'Use your reset token to set a new password.',
-      button: 'Reset password',
+      intro: 'Create a new password for your account.',
+      button: 'Change password',
     },
     verify: {
       title: 'Verify email',
@@ -51,23 +69,75 @@ function AuthTools({ mode }) {
         : mode === 'reset'
           ? { token: formData.token, newPassword: formData.newPassword }
           : { token: formData.token }
+
+      if (mode === 'reset' && formData.newPassword !== formData.confirmPassword) {
+        throw new Error('New password and confirm password do not match.')
+      }
+
       const result = await apiRequest(endpoint, {
         method: 'POST',
         body: JSON.stringify(body),
       })
 
+      if (mode === 'forgot') {
+        setOtpState({
+          open: true,
+          loading: false,
+          otp: '',
+          devOtp: result.devResetToken || '',
+          error: '',
+        })
+      }
+
       setState({
         loading: false,
-        message: result.message || 'Request completed successfully.',
+        message: mode === 'reset'
+          ? 'Successfully changed the password. Redirecting to login...'
+          : result.message || 'Request completed successfully.',
         error: '',
         devToken: result.devResetToken || result.devVerificationToken || '',
       })
 
-      if (mode === 'verify') {
+      if (mode === 'reset') {
+        setTimeout(() => navigate('/login', { state: { message: 'Successfully changed the password. Please log in.' } }), 1200)
+      } else if (mode === 'verify') {
         setTimeout(() => navigate('/login', { state: { message: 'Email verified. You can sign in now.' } }), 800)
       }
     } catch (error) {
       setState({ loading: false, message: '', error: error.message, devToken: '' })
+    }
+  }
+
+  async function handleOtpSubmit(event) {
+    event.preventDefault()
+    setOtpState((current) => ({ ...current, loading: true, error: '' }))
+
+    try {
+      const result = await apiRequest('/auth/reset-password/verify-otp', {
+        method: 'POST',
+        body: JSON.stringify({ token: otpState.otp }),
+      })
+
+      setOtpState({
+        open: false,
+        loading: false,
+        otp: '',
+        devOtp: '',
+        error: '',
+      })
+      setState({
+        loading: false,
+        message: result.message || 'OTP verified.',
+        error: '',
+        devToken: '',
+      })
+      navigate(`/reset-password?token=${encodeURIComponent(otpState.otp)}`)
+    } catch (error) {
+      setOtpState((current) => ({
+        ...current,
+        loading: false,
+        error: error.message,
+      }))
     }
   }
 
@@ -89,7 +159,7 @@ function AuthTools({ mode }) {
           </label>
         )}
 
-        {mode !== 'forgot' && (
+        {mode === 'verify' && (
           <label>
             Token
             <input type="text" name="token" value={formData.token} onChange={updateField} required />
@@ -97,10 +167,51 @@ function AuthTools({ mode }) {
         )}
 
         {mode === 'reset' && (
-          <label>
-            New password
-            <input type="password" name="newPassword" value={formData.newPassword} onChange={updateField} required />
-          </label>
+          <>
+            <label>
+              New password
+              <span className="password-field">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="newPassword"
+                  value={formData.newPassword}
+                  onChange={updateField}
+                  autoComplete="new-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </span>
+            </label>
+
+            <label>
+              Confirm password
+              <span className="password-field">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={updateField}
+                  autoComplete="new-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowConfirmPassword((current) => !current)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+              </span>
+            </label>
+          </>
         )}
 
         <button type="submit" disabled={state.loading}>
@@ -114,7 +225,21 @@ function AuthTools({ mode }) {
 
       {state.error && <p className="status status-error" role="alert">{state.error}</p>}
       {state.message && <p className="status status-success">{state.message}</p>}
-      {state.devToken && <p className="status status-info">Development token: {state.devToken}</p>}
+      {mode !== 'forgot' && state.devToken && <p className="status status-info">Development token: {state.devToken}</p>}
+
+      {otpState.open && (
+        <OtpDialog
+          title="Enter reset OTP"
+          description="We sent a 6-digit password reset code to your email address."
+          otp={otpState.otp}
+          devOtp={otpState.devOtp}
+          loading={otpState.loading}
+          error={otpState.error}
+          onChange={(event) => setOtpState((current) => ({ ...current, otp: event.target.value }))}
+          onClose={() => setOtpState((current) => ({ ...current, open: false }))}
+          onSubmit={handleOtpSubmit}
+        />
+      )}
     </section>
   )
 }
