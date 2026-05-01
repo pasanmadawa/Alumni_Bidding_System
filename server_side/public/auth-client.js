@@ -101,7 +101,6 @@
       const data = await api('/auth/login', {
         method: 'POST',
         body: {
-          role: document.getElementById('login-role').value,
           email: document.getElementById('login-email').value,
           password: document.getElementById('login-password').value
         }

@@ -314,8 +314,7 @@ router.post(
   '/login',
   [
     body('email').isEmail().withMessage('Valid email is required'),
-    body('password').isString().withMessage('Password is required'),
-    body('role').optional().isString().withMessage('Role must be a string')
+    body('password').isString().withMessage('Password is required')
   ],
   async function login(req, res, next) {
     const validationResponse = handleValidationErrors(req, res);
@@ -324,7 +323,6 @@ router.post(
     try {
       const email = normalizeEmail(req.body.email);
       const password = req.body.password;
-      const requestedRole = req.body.role ? normalizeRole(req.body.role) : null;
       const user = await prisma.user.findUnique({
         where: {
           email: email
@@ -350,13 +348,6 @@ router.post(
         });
       }
 
-      if (requestedRole && user.role !== requestedRole) {
-        return res.status(403).json({
-          error: 'Forbidden',
-          message: 'This account is registered as ' + user.role + ', not ' + requestedRole
-        });
-      }
-
       if (!user.emailVerified) {
         return res.status(403).json({
           error: 'Forbidden',
@@ -377,14 +368,6 @@ router.post(
         user: buildUserResponse(user)
       });
     } catch (error) {
-      if (error.message && error.message.includes('role must be one of')) {
-        return res.status(400).json({
-          error: 'Validation Error',
-          message: error.message,
-          allowedRoles: ALLOWED_ROLES
-        });
-      }
-
       next(error);
     }
   }
