@@ -5,14 +5,14 @@ const jwt = require('jsonwebtoken');
 const { prisma } = require('../db');
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
-const ALLOWED_ROLES = ['ALUMNUS', 'ADMIN', 'SPONSOR'];
+const ALLOWED_ROLES = ['ALUMNUS', 'ADMIN', 'SPONSOR', 'STUDENT'];
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
 function getAllowedEmailDomains() {
-  const raw = process.env.ALLOWED_EMAIL_DOMAINS || 'westminster.ac.uk,iit.ac.lk';
+  const raw = process.env.ALLOWED_EMAIL_DOMAINS || 'my.westminster.ac.uk,iit.ac.lk';
 
   return raw
     .split(',')
@@ -41,7 +41,7 @@ function normalizeRole(role) {
   const normalizedRole = String(role || 'ALUMNUS').trim().toUpperCase();
 
   if (!ALLOWED_ROLES.includes(normalizedRole)) {
-    throw new Error('role must be one of ALUMNUS, ADMIN, SPONSOR');
+    throw new Error('role must be one of ALUMNUS, ADMIN, SPONSOR, STUDENT');
   }
 
   return normalizedRole;

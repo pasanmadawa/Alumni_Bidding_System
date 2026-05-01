@@ -14,6 +14,7 @@ exports.index = function(req, res){
       refresh: 'POST /auth/refresh',
       logout: 'POST /auth/logout',
       me: 'GET /auth/me',
+      deleteMyAccount: 'DELETE /auth/me',
       forgotPassword: 'POST /auth/forgot-password',
       resetPassword: 'POST /auth/reset-password',
       getMyProfile: 'GET /api/profile/me',

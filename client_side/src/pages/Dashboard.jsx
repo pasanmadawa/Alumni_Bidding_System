@@ -2,6 +2,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { apiRequest, assetUrl, clearAuth, getStoredAuth, logoutRequest } from '../lib/api.js'
 
+const IIT_INSTITUTION_NAME = 'Informatics Institute of Technology, Sri Lanka'
+const degreeProgrammes = [
+  'BSc (Hons) Business Computing',
+  'BEng (Hons) Software Engineering',
+  'BSc (Hons) Computer Science',
+  'BSc (Hons) Artificial Intelligence And Data Science',
+  'BSc (Hons) Business Data Analytics',
+  'BA (Hons) Business Management',
+  'MSc Applied Artificial Intelligence',
+  'MA Fashion Business Management',
+  'MSc Business Analytics',
+  'MSc Information Technology',
+  'MSc Big Data Analytics',
+  'MSc Cyber Security And Forensics',
+  'MSc Advanced Software Engineering',
+]
+
 const emptyProfile = {
   displayName: '',
   firstName: '',
@@ -9,11 +26,11 @@ const emptyProfile = {
   bio: '',
   contactNumber: '',
   linkedinUrl: '',
-  profilePageUrl: '',
 }
 
 const collectionTemplates = {
-  degrees: { title: '', institutionUrl: '', completionDate: '' },
+  specialisedAreas: { name: '' },
+  degrees: { title: '', institutionName: IIT_INSTITUTION_NAME, degreeUrl: '', completionDate: '' },
   certifications: { name: '', issuerUrl: '', completionDate: '' },
   licences: { name: '', issuerUrl: '', completionDate: '' },
   courses: { name: '', courseUrl: '', completionDate: '' },
@@ -21,6 +38,7 @@ const collectionTemplates = {
 }
 
 const collectionLabels = {
+  specialisedAreas: 'Specialised areas',
   degrees: 'Degrees',
   certifications: 'Certifications',
   licences: 'Licences',
@@ -46,9 +64,135 @@ function Message({ state }) {
   )
 }
 
-function JsonBlock({ data }) {
+function ResultPanel({ title, data }) {
   if (!data) return null
-  return <pre className="json-output">{JSON.stringify(data, null, 2)}</pre>
+
+  return (
+    <article className="panel wide">
+      <h2>{title}</h2>
+      <pre className="result-json">{JSON.stringify(data, null, 2)}</pre>
+    </article>
+  )
+}
+
+function formatMoney(value) {
+  if (value === undefined || value === null || value === '') return 'Not set'
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return String(value)
+  return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatDate(value) {
+  return value ? String(value).slice(0, 10) : 'Not set'
+}
+
+function BidSummary({ status }) {
+  if (!status) {
+    return (
+      <article className="panel bid-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="panel-kicker">Bid status</p>
+            <h2>My current bid</h2>
+          </div>
+        </div>
+        <p className="empty-state">Select a target date and check your status.</p>
+      </article>
+    )
+  }
+
+  const monthlyLimit = status.monthlyLimit || {}
+
+  return (
+    <article className="panel bid-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="panel-kicker">Bid status</p>
+          <h2>My current bid</h2>
+        </div>
+        <span className={`status-chip ${String(status.blindStatus || 'pending').toLowerCase()}`}>
+          {status.blindStatus || 'Pending'}
+        </span>
+      </div>
+      <div className="bid-metrics">
+        <div>
+          <span>Target date</span>
+          <strong>{formatDate(status.targetFeaturedDate)}</strong>
+        </div>
+        <div>
+          <span>My bid</span>
+          <strong>{status.bid ? formatMoney(status.bid.amount) : 'No bid'}</strong>
+        </div>
+        <div>
+          <span>Monthly wins</span>
+          <strong>{monthlyLimit.winsCount ?? 0}/{monthlyLimit.totalAllowed ?? 3}</strong>
+        </div>
+        <div>
+          <span>Remaining slots</span>
+          <strong>{monthlyLimit.remainingWins ?? 0}</strong>
+        </div>
+      </div>
+      <p className="bid-note">
+        {status.featuredSelected
+          ? 'Winner selection has completed for this date.'
+          : 'Highest bid amount remains hidden while bids are open.'}
+      </p>
+    </article>
+  )
+}
+
+function FeaturedResult({ featured, reveal }) {
+  const visible = reveal?.winner || featured?.featured
+
+  return (
+    <article className="panel bid-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="panel-kicker">Featured alumni</p>
+          <h2>{visible ? visible.alumnusName || 'Selected alumnus' : 'No winner revealed'}</h2>
+        </div>
+        <span className={`status-chip ${reveal?.revealed ? 'won' : 'pending'}`}>
+          {reveal?.revealed ? 'Revealed' : 'Blind'}
+        </span>
+      </div>
+      <p className="bid-note">Date: {formatDate(reveal?.targetFeaturedDate || featured?.targetFeaturedDate)}</p>
+      {visible?.items?.length > 0 ? (
+        <div className="winner-items">
+          {visible.items.map((item, index) => (
+            <span key={`${item.type}-${item.name}-${index}`}>{item.type.replaceAll('_', ' ')}: {item.name}</span>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-state">{reveal?.message || 'No featured alumnus has been selected for this date yet.'}</p>
+      )}
+    </article>
+  )
+}
+
+function BidHistory({ history }) {
+  const entries = history?.entries || []
+  if (!entries.length) return null
+
+  return (
+    <article className="panel wide bid-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="panel-kicker">Tracking</p>
+          <h2>Bid history {history.targetFeaturedDate ? `for ${history.targetFeaturedDate}` : ''}</h2>
+        </div>
+      </div>
+      <div className="bid-history-list">
+        {entries.map((entry) => (
+          <div className="bid-history-item" key={entry.id}>
+            <strong>{formatDate(entry.targetFeaturedDate)}</strong>
+            <span>{formatMoney(entry.amount)}</span>
+            <span>{new Date(entry.createdAt).toLocaleString()}</span>
+            <span className={`status-chip ${String(entry.action || 'pending').toLowerCase()}`}>{entry.action}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
 }
 
 function TrendChart({ title, items }) {
@@ -124,8 +268,36 @@ function collectionItemDetails(item) {
     .map(([key, value]) => ({
       key,
       label: key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()),
-      value: String(value).slice(0, 10),
+      value: key.toLowerCase().includes('date') ? String(value).slice(0, 10) : String(value),
     }))
+}
+
+function alumnusName(item) {
+  const profile = item.profile || {}
+  return profile.displayName || `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || item.email
+}
+
+function alumnusProgrammes(item) {
+  return (item.profile?.degrees || []).map((degree) => degree.title).filter(Boolean)
+}
+
+function alumnusGraduationDates(item) {
+  return (item.profile?.degrees || []).map((degree) => dateOnly(degree.completionDate)).filter(Boolean)
+}
+
+function fieldLabel(key) {
+  const labels = {
+    title: 'Degree title',
+    institutionName: 'Institute name',
+    degreeUrl: 'Degree URL',
+    completionDate: 'Completion date',
+    issuerUrl: 'Issuer URL',
+    courseUrl: 'Course URL',
+    startDate: 'Start date',
+    endDate: 'End date',
+  }
+
+  return labels[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())
 }
 
 function Dashboard({ view = 'home' }) {
@@ -136,7 +308,7 @@ function Dashboard({ view = 'home' }) {
   const [collections, setCollections] = useState(collectionTemplates)
   const [completion, setCompletion] = useState(null)
   const [featuredDate, setFeaturedDate] = useState(dateOnly(new Date()))
-  const [bidForm, setBidForm] = useState({ targetFeaturedDate: dateOnly(new Date()), amount: '' })
+  const [bidForm, setBidForm] = useState({ targetFeaturedDate: dateOnly(new Date()), amount: '10000' })
   const [adminWinnerDate, setAdminWinnerDate] = useState('')
   const [creditForm, setCreditForm] = useState({
     userId: '',
@@ -144,7 +316,8 @@ function Dashboard({ view = 'home' }) {
     month: String(new Date().getMonth() + 1),
     extraWinsAllowed: '1',
   })
-  const [trendFilters, setTrendFilters] = useState({ programme: '', graduationDate: '' })
+  const [trendFilters, setTrendFilters] = useState({ programme: '', graduationDate: '', industrySector: '' })
+  const [alumniFilters, setAlumniFilters] = useState({ programme: '', graduationDate: '', industrySector: '' })
   const [trends, setTrends] = useState(null)
   const [alumni, setAlumni] = useState([])
   const [selectedAlumnus, setSelectedAlumnus] = useState(null)
@@ -159,8 +332,12 @@ function Dashboard({ view = 'home' }) {
   const canViewAlumni = role === 'SPONSOR' || role === 'ADMIN'
   const isAlumnus = role === 'ALUMNUS'
   const isAdmin = role === 'ADMIN'
+  const canEditProfile = role === 'ALUMNUS' || role === 'SPONSOR'
   const isProfileView = view === 'profile'
   const isBidsView = view === 'bids'
+  const isGraphsView = view === 'graphs'
+  const isAlumniView = view === 'alumni'
+  const isDashboardView = view === 'home'
 
   const profilePayload = useMemo(() => compactBody({
     displayName: profile.displayName,
@@ -169,7 +346,6 @@ function Dashboard({ view = 'home' }) {
     bio: profile.bio,
     contactNumber: profile.contactNumber,
     linkedinUrl: profile.linkedinUrl,
-    profilePageUrl: profile.profilePageUrl,
   }), [profile])
 
   useEffect(() => {
@@ -208,7 +384,6 @@ function Dashboard({ view = 'home' }) {
       bio: next.bio || '',
       contactNumber: next.contactNumber || '',
       linkedinUrl: next.linkedinUrl || '',
-      profilePageUrl: next.profilePageUrl || '',
       profileImage: next.profileImage || '',
     })
   }
@@ -236,14 +411,20 @@ function Dashboard({ view = 'home' }) {
       localStorage.setItem('authUser', JSON.stringify(result.user))
     }
 
-    const profileResult = await run(async () => apiRequest('/api/profile/me'), null)
-    if (profileResult?.profile) {
-      hydrateProfile(profileResult.profile)
-      setAuthUser((current) => ({ ...(current || profileResult.user), profile: profileResult.profile }))
-    }
+    const nextUser = result?.user || authUser
 
-    const completionResult = await run(async () => apiRequest('/api/profile/me/completion-status'), null)
-    if (completionResult?.completionStatus) setCompletion(completionResult.completionStatus)
+    if (nextUser && ['ALUMNUS', 'SPONSOR'].includes(nextUser.role)) {
+      const profileResult = await run(async () => apiRequest('/api/profile/me'), null)
+      if (profileResult?.profile) {
+        hydrateProfile(profileResult.profile)
+        setAuthUser((current) => ({ ...(current || profileResult.user), profile: profileResult.profile }))
+      }
+
+      const completionResult = await run(async () => apiRequest('/api/profile/me/completion-status'), null)
+      if (completionResult?.completionStatus) setCompletion(completionResult.completionStatus)
+    } else {
+      setCompletion(null)
+    }
   }
 
   async function handleLogout() {
@@ -251,48 +432,43 @@ function Dashboard({ view = 'home' }) {
     navigate('/login', { replace: true, state: { message: 'Logged out successfully.' } })
   }
 
-  async function saveBasicProfile(event) {
+  async function saveProfile(event) {
     event.preventDefault()
-    const result = await run(async () => apiRequest('/api/profile/me/basic', {
-      method: 'PATCH',
-      body: JSON.stringify(profilePayload),
-    }), 'Profile saved successfully.')
-    if (result?.profile) {
-      hydrateProfile(result.profile)
-      setAuthUser((current) => ({ ...(current || {}), profile: result.profile }))
-      setProfileEditMode(false)
-    }
-  }
-
-  async function saveLinkedin(event) {
-    event.preventDefault()
-    const result = await run(async () => apiRequest('/api/profile/me/linkedin', {
-      method: 'PATCH',
-      body: JSON.stringify({ linkedinUrl: profile.linkedinUrl }),
-    }), 'Profile saved successfully.')
-    if (result?.profile) {
-      hydrateProfile(result.profile)
-      setAuthUser((current) => ({ ...(current || {}), profile: result.profile }))
-      setProfileEditMode(false)
-    }
-  }
-
-  async function saveFullProfile() {
+    const existingProfile = authUser?.profile || {}
     const result = await run(async () => apiRequest('/api/profile/me', {
       method: 'PUT',
       body: JSON.stringify({
         ...profilePayload,
-        degrees: [],
-        certifications: [],
-        licences: [],
-        courses: [],
-        employment: [],
+        profilePageUrl: authUser?.profile?.profilePageUrl || '',
+        specialisedAreas: existingProfile.specialisedAreas || [],
+        degrees: existingProfile.degrees || [],
+        certifications: existingProfile.certifications || [],
+        licences: existingProfile.licences || [],
+        courses: existingProfile.courses || [],
+        employment: existingProfile.employment || [],
       }),
     }), 'Profile saved successfully.')
     if (result?.profile) {
       hydrateProfile(result.profile)
       setAuthUser((current) => ({ ...(current || {}), profile: result.profile }))
       setProfileEditMode(false)
+    }
+  }
+
+  async function deleteAccount() {
+    const confirmed = window.confirm('Delete your account and all related information? This cannot be undone.')
+    if (!confirmed) return
+
+    const { refreshToken } = getStoredAuth()
+
+    const result = await run(async () => apiRequest('/auth/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ refreshToken }),
+    }), null)
+
+    if (result) {
+      clearAuth()
+      navigate('/login', { replace: true, state: { message: 'Account deleted successfully.' } })
     }
   }
 
@@ -358,7 +534,10 @@ function Dashboard({ view = 'home' }) {
       method: 'POST',
       body: JSON.stringify(bidForm),
     }))
-    if (result) setBidStatus(result)
+    if (result) {
+      setBidStatus(result)
+      await loadBidHistory()
+    }
   }
 
   async function increaseBid() {
@@ -366,21 +545,35 @@ function Dashboard({ view = 'home' }) {
       method: 'PUT',
       body: JSON.stringify(bidForm),
     }))
-    if (result) setBidStatus(result)
+    if (result) {
+      setBidStatus(result)
+      await loadBidHistory()
+    }
   }
 
   async function cancelBid() {
     const result = await run(async () => apiRequest(`/api/bids/me?targetFeaturedDate=${bidForm.targetFeaturedDate}`, { method: 'DELETE' }))
-    if (result) setBidStatus(result)
+    if (result) {
+      setBidStatus(null)
+      await loadBidHistory()
+    }
   }
 
   async function loadBidHistory() {
-    const result = await run(async () => apiRequest('/api/bids/history'), 'Bid history loaded.')
+    const query = bidForm.targetFeaturedDate ? `?targetFeaturedDate=${bidForm.targetFeaturedDate}` : ''
+    const result = await run(async () => apiRequest(`/api/bids/history${query}`), 'Bid history loaded.')
     if (result) setBidHistory(result)
   }
 
-  async function loadAlumni() {
-    const result = await run(async () => apiRequest('/api/alumni'), 'Alumni loaded.')
+  async function loadAlumni(filters = alumniFilters) {
+    const params = new URLSearchParams()
+
+    if (filters.programme) params.set('programme', filters.programme)
+    if (filters.graduationDate) params.set('graduationDate', filters.graduationDate)
+    if (filters.industrySector) params.set('industrySector', filters.industrySector)
+
+    const query = params.toString() ? `?${params.toString()}` : ''
+    const result = await run(async () => apiRequest(`/api/alumni${query}`), 'Alumni loaded.')
     if (result?.alumni) setAlumni(result.alumni)
   }
 
@@ -394,6 +587,7 @@ function Dashboard({ view = 'home' }) {
 
     if (filters.programme) params.set('programme', filters.programme)
     if (filters.graduationDate) params.set('graduationDate', filters.graduationDate)
+    if (filters.industrySector) params.set('industrySector', filters.industrySector)
 
     const query = params.toString() ? `?${params.toString()}` : ''
     const result = await run(async () => apiRequest(`/api/trends${query}`), 'Trends loaded.')
@@ -406,9 +600,20 @@ function Dashboard({ view = 'home' }) {
   }
 
   async function clearTrendFilters() {
-    const filters = { programme: '', graduationDate: '' }
+    const filters = { programme: '', graduationDate: '', industrySector: '' }
     setTrendFilters(filters)
     await loadTrends(filters)
+  }
+
+  async function applyAlumniFilters(event) {
+    event.preventDefault()
+    await loadAlumni(alumniFilters)
+  }
+
+  async function clearAlumniFilters() {
+    const filters = { programme: '', graduationDate: '', industrySector: '' }
+    setAlumniFilters(filters)
+    await loadAlumni(filters)
   }
 
   async function deleteAlumnus(userId) {
@@ -423,7 +628,15 @@ function Dashboard({ view = 'home' }) {
       method: 'POST',
       body: JSON.stringify(adminWinnerDate ? { targetFeaturedDate: adminWinnerDate } : {}),
     }))
-    if (result) setReveal(result)
+    if (result) {
+      setReveal(result)
+      if (adminWinnerDate) {
+        setFeaturedDate(adminWinnerDate)
+        const query = `?targetFeaturedDate=${adminWinnerDate}`
+        const revealResult = await run(async () => apiRequest(`/api/bids/reveal/current${query}`), null)
+        if (revealResult) setReveal(revealResult)
+      }
+    }
   }
 
   async function addEventCredit(event) {
@@ -432,14 +645,16 @@ function Dashboard({ view = 'home' }) {
       method: 'POST',
       body: JSON.stringify(creditForm),
     }))
-    if (result) setReveal(result)
+    if (result) setNotice('Monthly event credit saved successfully.')
   }
 
-  const profileCollections = Object.keys(collectionTemplates).map((section) => ({
+  const profileDetailSections = Object.keys(collectionTemplates).filter((section) => section !== 'specialisedAreas')
+  const profileCollections = profileDetailSections.map((section) => ({
     section,
     label: collectionLabels[section],
     items: authUser?.profile?.[section] || [],
   }))
+  const specialisedAreas = authUser?.profile?.specialisedAreas || []
   const hasProfileSections = profileCollections.some((section) => section.items.length > 0)
   const hasProfileDetails = [
     profile.displayName,
@@ -448,21 +663,25 @@ function Dashboard({ view = 'home' }) {
     profile.lastName,
     profile.bio,
     profile.linkedinUrl,
-    profile.profilePageUrl,
   ].some(hasValue)
 
   return (
     <main className="app-shell">
       <header className="app-header">
         <div className="brand-block compact">
-          <img className="brand-mark" src="/logo.png" alt="Alumni Club logo" />
-          <div>
-            <h1>Alumni Club</h1>
-            <p>{authUser?.email} · {role}</p>
-          </div>
+          <Link className="dashboard-brand-link" to="/dashboard" aria-label="Go to graph page">
+            <img className="brand-mark" src="/logo.png" alt="Alumni Club logo" />
+            <div>
+              <h1>Alumni Club</h1>
+              <p>{authUser?.email} - {role}</p>
+            </div>
+          </Link>
         </div>
         <div className="header-actions">
           <nav className="dashboard-nav" aria-label="Dashboard navigation">
+            <Link className={`dashboard-nav-link${isDashboardView ? ' active' : ''}`} to="/dashboard">Dashboard</Link>
+            <Link className={`dashboard-nav-link${isGraphsView ? ' active' : ''}`} to="/graphs">Graphs</Link>
+            {canViewAlumni && <Link className={`dashboard-nav-link${isAlumniView ? ' active' : ''}`} to="/alumni">Alumni</Link>}
             <Link className={`dashboard-nav-link${isBidsView ? ' active' : ''}`} to="/bids">Bid</Link>
             <div className="profile-menu">
               <button
@@ -473,7 +692,10 @@ function Dashboard({ view = 'home' }) {
                 Profile
               </button>
               <div className="profile-menu-list" role="menu">
-                <Link className="profile-menu-item" to="/profile" role="menuitem">My profile</Link>
+                {canEditProfile && <Link className="profile-menu-item" to="/profile" role="menuitem">My profile</Link>}
+                <button type="button" className="profile-menu-item danger-menu-item" onClick={deleteAccount} role="menuitem">
+                  Delete account
+                </button>
                 <button type="button" className="profile-menu-item" onClick={handleLogout} role="menuitem">
                   Logout
                 </button>
@@ -483,10 +705,44 @@ function Dashboard({ view = 'home' }) {
         </div>
       </header>
 
+      {isBidsView && <Message state={state} />}
       {isProfileView && state.message === 'Profile saved successfully.' && <Message state={state} />}
 
       <section className="dashboard-grid">
-        {!isProfileView && !isBidsView && (
+        {isDashboardView && (
+          <article className="panel wide dashboard-overview">
+            <div className="panel-heading">
+              <div>
+                <p className="panel-kicker">Dashboard</p>
+                <h2>Alumni system overview</h2>
+              </div>
+            </div>
+            <div className="dashboard-quick-grid">
+              <Link className="quick-card" to="/graphs">
+                <span>Graphs</span>
+                <strong>Programme, graduation, skills, sector, jobs, employers, and location charts</strong>
+              </Link>
+              {canViewAlumni && (
+                <Link className="quick-card" to="/alumni">
+                  <span>Alumni</span>
+                  <strong>View alumni by programme, graduation date, and industry sector</strong>
+                </Link>
+              )}
+              <Link className="quick-card" to="/bids">
+                <span>Blind bidding</span>
+                <strong>Place bids, track status, and view featured alumni</strong>
+              </Link>
+              {canEditProfile && (
+                <Link className="quick-card" to="/profile">
+                  <span>Profile</span>
+                  <strong>Maintain profile, education, courses, and employment details</strong>
+                </Link>
+              )}
+            </div>
+          </article>
+        )}
+
+        {isGraphsView && (
           <article className="panel wide trends-panel">
           <div className="panel-heading">
             <div>
@@ -519,6 +775,17 @@ function Dashboard({ view = 'home' }) {
                 ))}
               </select>
             </Field>
+            <Field label="Industry sector">
+              <select
+                value={trendFilters.industrySector}
+                onChange={(event) => setTrendFilters((current) => ({ ...current, industrySector: event.target.value }))}
+              >
+                <option value="">All industry sectors</option>
+                {(trends?.filters?.industrySectors || []).map((sectorOption) => (
+                  <option key={sectorOption} value={sectorOption}>{sectorOption}</option>
+                ))}
+              </select>
+            </Field>
             <div className="button-row trend-actions">
               <button type="submit">Apply filters</button>
               <button type="button" className="light-button" onClick={clearTrendFilters}>Clear</button>
@@ -527,6 +794,7 @@ function Dashboard({ view = 'home' }) {
 
           <div className="trend-grid">
             <TrendChart title="Curriculum skills gap" items={trends?.charts?.curriculumSkillsGap || []} />
+            <TrendChart title="Specialised areas" items={trends?.charts?.specialisedAreas || []} />
             <TrendChart title="Employment by industry sector" items={trends?.charts?.employmentByIndustrySector || []} />
             <TrendChart title="Most common job titles" items={trends?.charts?.mostCommonJobTitles || []} />
             <TrendChart title="Top employers" items={trends?.charts?.topEmployers || []} />
@@ -535,7 +803,19 @@ function Dashboard({ view = 'home' }) {
           </article>
         )}
 
-        {isProfileView && (
+        {isProfileView && !canEditProfile && (
+          <article className="panel wide profile-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="panel-kicker">Account</p>
+                <h2>Student access</h2>
+              </div>
+            </div>
+            <p className="empty-state">Students can view featured alumni and trends without adding alumni profile details.</p>
+          </article>
+        )}
+
+        {isProfileView && canEditProfile && (
           <>
         <article className="panel wide profile-panel">
           <div className="panel-heading">
@@ -566,12 +846,21 @@ function Dashboard({ view = 'home' }) {
                   <ProfileDetail label="Last name" value={profile.lastName} />
                   <ProfileDetail label="Contact number" value={profile.contactNumber} />
                   <ProfileDetail label="LinkedIn" value={profile.linkedinUrl} href={profile.linkedinUrl} />
-                  <ProfileDetail label="Profile page" value={profile.profilePageUrl} href={profile.profilePageUrl} />
                 </div>
                 {hasValue(profile.bio) && (
                   <div className="profile-bio">
                     <span>Bio</span>
                     <p>{profile.bio}</p>
+                  </div>
+                )}
+                {specialisedAreas.length > 0 && (
+                  <div className="profile-bio">
+                    <span>Areas specialised</span>
+                    <div className="area-tags">
+                      {specialisedAreas.map((area) => (
+                        <strong key={area.id}>{area.name}</strong>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {completion && (
@@ -583,7 +872,7 @@ function Dashboard({ view = 'home' }) {
             </div>
           ) : (
             <>
-              <form className="dashboard-form" onSubmit={saveBasicProfile}>
+              <form className="dashboard-form" onSubmit={saveProfile}>
                 <div className="form-row">
                   <Field label="Display name">
                     <input value={profile.displayName} onChange={(event) => setProfile({ ...profile, displayName: event.target.value })} />
@@ -609,14 +898,9 @@ function Dashboard({ view = 'home' }) {
                   <Field label="LinkedIn URL">
                     <input value={profile.linkedinUrl} onChange={(event) => setProfile({ ...profile, linkedinUrl: event.target.value })} />
                   </Field>
-                  <Field label="Profile page URL">
-                    <input value={profile.profilePageUrl} onChange={(event) => setProfile({ ...profile, profilePageUrl: event.target.value })} />
-                  </Field>
                 </div>
                 <div className="button-row">
-                  <button type="submit">Save basic profile</button>
-                  <button type="button" onClick={saveLinkedin}>Save LinkedIn only</button>
-                  <button type="button" onClick={saveFullProfile}>Save full profile</button>
+                  <button type="submit">Save</button>
                 </div>
               </form>
               <div className="image-row">
@@ -625,6 +909,56 @@ function Dashboard({ view = 'home' }) {
                   <input type="file" accept="image/*" onChange={uploadImage} />
                 </Field>
               </div>
+              {isAlumnus && (
+                <section className="specialised-area-editor" aria-labelledby="specialised-area-title">
+                  <div>
+                    <p className="panel-kicker">Areas specialised</p>
+                    <h3 id="specialised-area-title">Specialised areas</h3>
+                  </div>
+                  <div className="specialised-area-add">
+                    <input
+                      aria-label="Specialised area"
+                      value={collections.specialisedAreas.name}
+                      onChange={(event) => setCollections((current) => ({
+                        ...current,
+                        specialisedAreas: { name: event.target.value },
+                      }))}
+                    />
+                    <button
+                      type="button"
+                      className="plus-button"
+                      aria-label="Add specialised area"
+                      disabled={!collections.specialisedAreas.name.trim()}
+                      onClick={() => addCollectionItem('specialisedAreas')}
+                    >
+                      +
+                    </button>
+                  </div>
+                  {specialisedAreas.length > 0 && (
+                    <div className="area-tags editable-area-tags">
+                      {specialisedAreas.map((area) => (
+                        <span className="editable-area-tag" key={area.id}>
+                          <input
+                            aria-label="Specialised area name"
+                            value={area.name}
+                            onChange={(event) => setAuthUser((current) => ({
+                              ...(current || {}),
+                              profile: {
+                                ...(current?.profile || {}),
+                                specialisedAreas: specialisedAreas.map((item) => (
+                                  item.id === area.id ? { ...item, name: event.target.value } : item
+                                )),
+                              },
+                            }))}
+                          />
+                          <button type="button" onClick={() => updateCollectionItem('specialisedAreas', area)}>Update</button>
+                          <button type="button" className="light-button" onClick={() => deleteCollectionItem('specialisedAreas', area.id)}>Remove</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
               {completion && (
                 <p className="status status-info">
                   Completion: {completion.percentage}% ({completion.completedItems}/{completion.totalItems})
@@ -668,20 +1002,36 @@ function Dashboard({ view = 'home' }) {
               </div>
             ) : (
               <div className="collection-grid">
-                {Object.keys(collectionTemplates).map((section) => (
+                {Object.keys(collectionTemplates).filter((section) => section !== 'specialisedAreas').map((section) => (
                   <section className="mini-panel" key={section}>
                     <h3>{collectionLabels[section]}</h3>
                     <div className="dashboard-form">
                       {Object.keys(collectionTemplates[section]).map((key) => (
-                        <Field key={key} label={key}>
-                          <input
-                            type={key.toLowerCase().includes('date') ? 'date' : 'text'}
-                            value={collections[section][key]}
-                            onChange={(event) => setCollections((current) => ({
-                              ...current,
-                              [section]: { ...current[section], [key]: event.target.value },
-                            }))}
-                          />
+                        <Field key={key} label={fieldLabel(key)}>
+                          {section === 'degrees' && key === 'title' ? (
+                            <select
+                              value={collections.degrees.title}
+                              onChange={(event) => setCollections((current) => ({
+                                ...current,
+                                degrees: { ...current.degrees, title: event.target.value, institutionName: IIT_INSTITUTION_NAME },
+                              }))}
+                            >
+                              <option value="">Select programme</option>
+                              {degreeProgrammes.map((programme) => (
+                                <option key={programme} value={programme}>{programme}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type={key.toLowerCase().includes('date') ? 'date' : 'text'}
+                              value={section === 'degrees' && key === 'institutionName' ? IIT_INSTITUTION_NAME : collections[section][key]}
+                              readOnly={section === 'degrees' && key === 'institutionName'}
+                              onChange={(event) => setCollections((current) => ({
+                                ...current,
+                                [section]: { ...current[section], [key]: event.target.value },
+                              }))}
+                            />
+                          )}
                         </Field>
                       ))}
                       <button type="button" onClick={() => addCollectionItem(section)}>Add {collectionLabels[section]}</button>
@@ -707,8 +1057,13 @@ function Dashboard({ view = 'home' }) {
 
         {isBidsView && (
           <>
-        <article className="panel">
-          <h2>Featured alumni</h2>
+        <article className="panel bid-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="panel-kicker">Blind bidding</p>
+              <h2>Featured date</h2>
+            </div>
+          </div>
           <div className="dashboard-form">
             <Field label="Featured date">
               <input type="date" value={featuredDate} onChange={(event) => setFeaturedDate(event.target.value)} />
@@ -718,18 +1073,22 @@ function Dashboard({ view = 'home' }) {
               <button type="button" onClick={loadReveal}>Reveal winner</button>
             </div>
           </div>
-          <JsonBlock data={featured || reveal} />
         </article>
 
         {isAlumnus && (
-          <article className="panel">
-            <h2>My bids</h2>
+          <article className="panel bid-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="panel-kicker">Bid placement</p>
+                <h2>My bids</h2>
+              </div>
+            </div>
             <form className="dashboard-form" onSubmit={placeBid}>
               <Field label="Target featured date">
                 <input type="date" value={bidForm.targetFeaturedDate} onChange={(event) => setBidForm({ ...bidForm, targetFeaturedDate: event.target.value })} required />
               </Field>
               <Field label="Amount">
-                <input value={bidForm.amount} onChange={(event) => setBidForm({ ...bidForm, amount: event.target.value })} placeholder="100.00" required />
+                <input value={bidForm.amount} onChange={(event) => setBidForm({ ...bidForm, amount: event.target.value })} placeholder="10000" required />
               </Field>
               <div className="button-row">
                 <button type="submit">Place bid</button>
@@ -739,21 +1098,75 @@ function Dashboard({ view = 'home' }) {
                 <button type="button" onClick={loadBidHistory}>History</button>
               </div>
             </form>
-            <JsonBlock data={bidStatus || bidHistory} />
           </article>
         )}
 
           </>
         )}
 
-        {isProfileView && canViewAlumni && (
+        {isBidsView && (
+          <>
+            <FeaturedResult featured={featured} reveal={reveal} />
+            {isAlumnus && <BidSummary status={bidStatus} />}
+            {isAlumnus && <BidHistory history={bidHistory} />}
+          </>
+        )}
+
+        {isAlumniView && canViewAlumni && (
           <article className="panel wide">
-            <h2>Alumni directory</h2>
-            <button type="button" onClick={loadAlumni}>Load alumni</button>
+            <div className="panel-heading">
+              <div>
+                <p className="panel-kicker">Alumni directory</p>
+                <h2>View alumni by programme, graduation date, and industry sector</h2>
+              </div>
+              <span className="metric-pill">{alumni.length} alumni</span>
+            </div>
+            <form className="trend-filters" onSubmit={applyAlumniFilters}>
+              <Field label="Programme">
+                <select
+                  value={alumniFilters.programme}
+                  onChange={(event) => setAlumniFilters((current) => ({ ...current, programme: event.target.value }))}
+                >
+                  <option value="">All programmes</option>
+                  {(trends?.filters?.programmes || degreeProgrammes).map((programmeOption) => (
+                    <option key={programmeOption} value={programmeOption}>{programmeOption}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Graduation date">
+                <select
+                  value={alumniFilters.graduationDate}
+                  onChange={(event) => setAlumniFilters((current) => ({ ...current, graduationDate: event.target.value }))}
+                >
+                  <option value="">All graduation dates</option>
+                  {(trends?.filters?.graduationDates || []).map((dateOption) => (
+                    <option key={dateOption} value={dateOption}>{dateOption}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Industry sector">
+                <select
+                  value={alumniFilters.industrySector}
+                  onChange={(event) => setAlumniFilters((current) => ({ ...current, industrySector: event.target.value }))}
+                >
+                  <option value="">All industry sectors</option>
+                  {(trends?.filters?.industrySectors || []).map((sectorOption) => (
+                    <option key={sectorOption} value={sectorOption}>{sectorOption}</option>
+                  ))}
+                </select>
+              </Field>
+              <div className="button-row trend-actions">
+                <button type="submit">View alumni</button>
+                <button type="button" className="light-button" onClick={clearAlumniFilters}>Clear</button>
+              </div>
+            </form>
             <div className="directory">
               {alumni.map((item) => (
                 <div className="list-item" key={item.id}>
-                  <span>{item.profile?.firstName || item.profile?.displayName || item.email}</span>
+                  <span>
+                    <strong>{alumnusName(item)}</strong>
+                    <small>{alumnusProgrammes(item).join(', ') || 'Programme not recorded'} | {alumnusGraduationDates(item).join(', ') || 'Graduation date not recorded'} | {(item.industrySectors || []).join(', ') || 'Industry sector not recorded'}</small>
+                  </span>
                   <div className="button-row compact-buttons">
                     <button type="button" onClick={() => loadAlumnus(item.id)}>View</button>
                     {isAdmin && <button type="button" onClick={() => deleteAlumnus(item.id)}>Delete</button>}
@@ -761,13 +1174,19 @@ function Dashboard({ view = 'home' }) {
                 </div>
               ))}
             </div>
-            <JsonBlock data={selectedAlumnus} />
           </article>
         )}
 
+        {isAlumniView && canViewAlumni && <ResultPanel title="Selected alumnus" data={selectedAlumnus} />}
+
         {isBidsView && isAdmin && (
-          <article className="panel wide">
-            <h2>Admin bidding</h2>
+          <article className="panel wide bid-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="panel-kicker">Admin</p>
+                <h2>Winner selection and event credits</h2>
+              </div>
+            </div>
             <form className="dashboard-form" onSubmit={selectWinner}>
               <Field label="Winner date">
                 <input type="date" value={adminWinnerDate} onChange={(event) => setAdminWinnerDate(event.target.value)} />

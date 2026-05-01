@@ -34,9 +34,26 @@ function countItems(values) {
     .slice(0, 8);
 }
 
-function matchFilter(user, programme, graduationDate) {
+function inferSector(employment) {
+  const company = (employment.company || '').toLowerCase();
+  const role = (employment.role || '').toLowerCase();
+  const text = `${company} ${role}`;
+
+  if (/(software|developer|engineer|data|cloud|tech|it|systems)/.test(text)) return 'Technology';
+  if (/(bank|finance|account|audit|insurance)/.test(text)) return 'Finance';
+  if (/(school|university|teacher|lecturer|education)/.test(text)) return 'Education';
+  if (/(hospital|health|medical|clinic)/.test(text)) return 'Healthcare';
+  if (/(market|sales|brand|media|advertising)/.test(text)) return 'Marketing and sales';
+
+  return 'Other / not recorded';
+}
+
+function matchFilter(user, programme, graduationDate, industrySector) {
   const degrees = user.profile && Array.isArray(user.profile.degrees)
     ? user.profile.degrees
+    : [];
+  const employment = user.profile && Array.isArray(user.profile.employment)
+    ? user.profile.employment
     : [];
 
   if (programme && !degrees.some(function (degree) {
@@ -51,21 +68,13 @@ function matchFilter(user, programme, graduationDate) {
     return false;
   }
 
+  if (industrySector && !employment.some(function (entry) {
+    return inferSector(entry) === industrySector;
+  })) {
+    return false;
+  }
+
   return true;
-}
-
-function inferSector(employment) {
-  const company = (employment.company || '').toLowerCase();
-  const role = (employment.role || '').toLowerCase();
-  const text = `${company} ${role}`;
-
-  if (/(software|developer|engineer|data|cloud|tech|it|systems)/.test(text)) return 'Technology';
-  if (/(bank|finance|account|audit|insurance)/.test(text)) return 'Finance';
-  if (/(school|university|teacher|lecturer|education)/.test(text)) return 'Education';
-  if (/(hospital|health|medical|clinic)/.test(text)) return 'Healthcare';
-  if (/(market|sales|brand|media|advertising)/.test(text)) return 'Marketing and sales';
-
-  return 'Other / not recorded';
 }
 
 function inferLocation(profile) {
@@ -85,6 +94,7 @@ router.get('/', async function getTrends(req, res, next) {
   try {
     const programme = req.query.programme ? String(req.query.programme) : '';
     const graduationDate = req.query.graduationDate ? String(req.query.graduationDate) : '';
+    const industrySector = req.query.industrySector ? String(req.query.industrySector) : '';
     const alumni = await prisma.user.findMany({
       where: {
         role: 'ALUMNUS'
@@ -96,21 +106,24 @@ router.get('/', async function getTrends(req, res, next) {
             certifications: true,
             licences: true,
             courses: true,
-            employment: true
+            employment: true,
+            specialisedAreas: true
           }
         }
       }
     });
     const filtered = alumni.filter(function (user) {
-      return matchFilter(user, programme, graduationDate);
+      return matchFilter(user, programme, graduationDate, industrySector);
     });
     const programmes = new Set();
     const graduationDates = new Set();
+    const industrySectors = new Set();
     const skillSignals = [];
     const sectors = [];
     const jobTitles = [];
     const employers = [];
     const locations = [];
+    const specialisedAreas = [];
 
     filtered.forEach(function (user) {
       const profile = user.profile || {};
@@ -129,8 +142,13 @@ router.get('/', async function getTrends(req, res, next) {
       (profile.licences || []).forEach(function (licence) {
         skillSignals.push(licence.name);
       });
+      (profile.specialisedAreas || []).forEach(function (area) {
+        specialisedAreas.push(area.name);
+      });
       (profile.employment || []).forEach(function (employment) {
-        sectors.push(inferSector(employment));
+        const sector = inferSector(employment);
+        sectors.push(sector);
+        industrySectors.add(sector);
         jobTitles.push(employment.role);
         employers.push(employment.company);
       });
@@ -142,8 +160,10 @@ router.get('/', async function getTrends(req, res, next) {
       filters: {
         programme,
         graduationDate,
+        industrySector,
         programmes: Array.from(programmes).sort(),
-        graduationDates: Array.from(graduationDates).sort().reverse()
+        graduationDates: Array.from(graduationDates).sort().reverse(),
+        industrySectors: Array.from(industrySectors).sort()
       },
       totals: {
         alumni: filtered.length
@@ -153,7 +173,8 @@ router.get('/', async function getTrends(req, res, next) {
         employmentByIndustrySector: countItems(sectors),
         mostCommonJobTitles: countItems(jobTitles),
         topEmployers: countItems(employers),
-        geographicDistribution: countItems(locations)
+        geographicDistribution: countItems(locations),
+        specialisedAreas: countItems(specialisedAreas)
       }
     });
   } catch (error) {

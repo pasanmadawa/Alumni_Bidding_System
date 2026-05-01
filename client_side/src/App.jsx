@@ -80,6 +80,8 @@ function App() {
         )}
       />
       <Route path="/dashboard" element={<Dashboard view="home" />} />
+      <Route path="/graphs" element={<Dashboard view="graphs" />} />
+      <Route path="/alumni" element={<Dashboard view="alumni" />} />
       <Route path="/profile" element={<Dashboard view="profile" />} />
       <Route path="/bids" element={<Dashboard view="bids" />} />
       <Route path="/sign-in" element={<Navigate to="/login" replace />} />

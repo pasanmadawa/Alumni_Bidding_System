@@ -20,6 +20,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
   bids                    Bid[]
+  bidHistory              BidHistory[]
   sponsorOffers           SponsorOffer[]             @relation("AlumnusOffers")
   featuredAlumni          FeaturedAlumni[]
   apiKeysCreated          ApiKey[]                   @relation("ApiKeyCreator")
@@ -104,15 +105,28 @@ model Profile {
   licences       Licence[]
   courses        Course[]
   employment     Employment[]
+  specialisedAreas SpecialisedArea[]
 
   @@map("profiles")
+}
+
+model SpecialisedArea {
+  id        String  @id @default(uuid()) @db.Char(36)
+  profileId String? @map("profile_id") @db.Char(36)
+  name      String  @db.VarChar(255)
+
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("specialised_areas")
 }
 
 model Degree {
   id             String    @id @default(uuid()) @db.Char(36)
   profileId      String?   @map("profile_id") @db.Char(36)
   title          String    @db.VarChar(255)
-  institutionUrl String?   @map("institution_url") @db.VarChar(255)
+  institutionName String?  @map("institution_name") @db.VarChar(255)
+  degreeUrl      String?   @map("degree_url") @db.VarChar(255)
   completionDate DateTime? @map("completion_date") @db.Date
 
   profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -186,9 +200,28 @@ model Bid {
 
   user                User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
   bidOfferAllocations BidOfferAllocation[]
+  history             BidHistory[]
 
   @@index([userId])
   @@map("bids")
+}
+
+model BidHistory {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  bidId              String   @map("bid_id") @db.Char(36)
+  userId             String   @map("user_id") @db.Char(36)
+  amount             Decimal  @db.Decimal(10, 2)
+  action             String   @db.VarChar(20)
+  targetFeaturedDate DateTime @map("target_featured_date") @db.Date
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  bid  Bid  @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([bidId])
+  @@index([userId])
+  @@index([targetFeaturedDate])
+  @@map("bid_history")
 }
 
 model Sponsor {

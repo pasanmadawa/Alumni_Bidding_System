@@ -10,7 +10,54 @@ const router = express.Router();
 const requireSponsorOrAdmin = authorizeRoles('ADMIN', 'SPONSOR');
 const requireAdmin = authorizeRoles('ADMIN');
 
+function dateOnly(value) {
+  return value ? value.toISOString().slice(0, 10) : '';
+}
+
+function inferSector(employment) {
+  const company = (employment.company || '').toLowerCase();
+  const role = (employment.role || '').toLowerCase();
+  const text = `${company} ${role}`;
+
+  if (/(software|developer|engineer|data|cloud|tech|it|systems)/.test(text)) return 'Technology';
+  if (/(bank|finance|account|audit|insurance)/.test(text)) return 'Finance';
+  if (/(school|university|teacher|lecturer|education)/.test(text)) return 'Education';
+  if (/(hospital|health|medical|clinic)/.test(text)) return 'Healthcare';
+  if (/(market|sales|brand|media|advertising)/.test(text)) return 'Marketing and sales';
+
+  return 'Other / not recorded';
+}
+
+function matchAlumniFilters(user, filters) {
+  const profile = user.profile || {};
+  const degrees = Array.isArray(profile.degrees) ? profile.degrees : [];
+  const employment = Array.isArray(profile.employment) ? profile.employment : [];
+
+  if (filters.programme && !degrees.some(function (degree) {
+    return degree.title === filters.programme;
+  })) {
+    return false;
+  }
+
+  if (filters.graduationDate && !degrees.some(function (degree) {
+    return dateOnly(degree.completionDate) === filters.graduationDate;
+  })) {
+    return false;
+  }
+
+  if (filters.industrySector && !employment.some(function (entry) {
+    return inferSector(entry) === filters.industrySector;
+  })) {
+    return false;
+  }
+
+  return true;
+}
+
 function buildAlumnusResponse(user) {
+  const profile = user.profile || null;
+  const employment = profile && Array.isArray(profile.employment) ? profile.employment : [];
+
   return {
     id: user.id,
     email: user.email,
@@ -18,7 +65,8 @@ function buildAlumnusResponse(user) {
     emailVerified: user.emailVerified,
     appearanceCount: user.appearanceCount,
     createdAt: user.createdAt,
-    profile: user.profile || null,
+    industrySectors: Array.from(new Set(employment.map(inferSector))).sort(),
+    profile: profile,
     bids: Array.isArray(user.bids)
       ? user.bids.map(function (bid) {
           return {
@@ -47,7 +95,8 @@ async function findAlumnusById(userId) {
           certifications: true,
           licences: true,
           courses: true,
-          employment: true
+          employment: true,
+          specialisedAreas: true
         }
       },
       bids: {
@@ -64,6 +113,11 @@ router.use(authenticate);
 
 router.get('/', requireSponsorOrAdmin, async function listAlumni(req, res, next) {
   try {
+    const filters = {
+      programme: req.query.programme ? String(req.query.programme) : '',
+      graduationDate: req.query.graduationDate ? String(req.query.graduationDate) : '',
+      industrySector: req.query.industrySector ? String(req.query.industrySector) : ''
+    };
     const alumni = await prisma.user.findMany({
       where: {
         role: 'ALUMNUS'
@@ -75,7 +129,8 @@ router.get('/', requireSponsorOrAdmin, async function listAlumni(req, res, next)
             certifications: true,
             licences: true,
             courses: true,
-            employment: true
+            employment: true,
+            specialisedAreas: true
           }
         },
         bids: {
@@ -89,9 +144,13 @@ router.get('/', requireSponsorOrAdmin, async function listAlumni(req, res, next)
         createdAt: 'desc'
       }
     });
+    const filtered = alumni.filter(function (user) {
+      return matchAlumniFilters(user, filters);
+    });
 
     res.json({
-      alumni: alumni.map(buildAlumnusResponse)
+      filters: filters,
+      alumni: filtered.map(buildAlumnusResponse)
     });
   } catch (error) {
     next(error);

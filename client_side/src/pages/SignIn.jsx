@@ -5,6 +5,7 @@ import OtpDialog from '../components/OtpDialog.jsx'
 
 const roleOptions = [
   { value: 'ALUMNUS', label: 'Alumnus' },
+  { value: 'STUDENT', label: 'Student' },
   { value: 'SPONSOR', label: 'Sponsor' },
 ]
 
@@ -50,12 +51,17 @@ function SignIn() {
     })
 
     try {
+      const payload = {
+        ...formData,
+        firstName: formData.role === 'ALUMNUS' ? formData.firstName : '',
+        lastName: formData.role === 'ALUMNUS' ? formData.lastName : '',
+      }
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       const result = await response.json()
 
@@ -133,33 +139,35 @@ function SignIn() {
       </nav>
 
       <form className="login-form" onSubmit={handleSubmit}>
-        <div className="form-row">
-          <label>
-            First name
-            <input
-              type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={updateField}
-              placeholder="Madawa"
-              autoComplete="given-name"
-              required
-            />
-          </label>
+        {formData.role === 'ALUMNUS' && (
+          <div className="form-row">
+            <label>
+              First name
+              <input
+                type="text"
+                name="firstName"
+                value={formData.firstName}
+                onChange={updateField}
+                placeholder="Madawa"
+                autoComplete="given-name"
+                required
+              />
+            </label>
 
-          <label>
-            Last name
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={updateField}
-              placeholder="Wijesinghe"
-              autoComplete="family-name"
-              required
-            />
-          </label>
-        </div>
+            <label>
+              Last name
+              <input
+                type="text"
+                name="lastName"
+                value={formData.lastName}
+                onChange={updateField}
+                placeholder="Wijesinghe"
+                autoComplete="family-name"
+                required
+              />
+            </label>
+          </div>
+        )}
 
         <label>
           Email address

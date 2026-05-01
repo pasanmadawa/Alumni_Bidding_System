@@ -96,6 +96,14 @@ function consumeLoginOtpChallenge(challengeId, otp) {
   return challenge;
 }
 
+function deleteLoginOtpChallengesForUser(userId) {
+  for (const [challengeId, challenge] of loginOtpChallenges.entries()) {
+    if (challenge.userId === userId) {
+      loginOtpChallenges.delete(challengeId);
+    }
+  }
+}
+
 function handleValidationErrors(req, res) {
   const errors = validationResult(req);
 
@@ -536,6 +544,43 @@ router.get('/me', authenticate, async function me(req, res) {
   return res.json({
     user: buildUserResponse(req.currentUser)
   });
+});
+
+router.delete('/me', authenticate, async function deleteMyAccount(req, res, next) {
+  try {
+    const refreshToken = req.body.refreshToken || req.cookies.refreshToken;
+    const accessToken = getBearerToken(req);
+    const deletedUser = {
+      id: req.currentUser.id,
+      email: req.currentUser.email,
+      role: req.currentUser.role
+    };
+
+    if (refreshToken) {
+      await revokeRefreshSession(refreshToken);
+    }
+
+    if (accessToken) {
+      const payload = decodeAccessToken(accessToken);
+      await blacklistAccessTokenPayload(payload);
+    }
+
+    await prisma.user.delete({
+      where: {
+        id: req.currentUser.id
+      }
+    });
+
+    deleteLoginOtpChallengesForUser(req.currentUser.id);
+    clearRefreshTokenCookie(res);
+
+    return res.json({
+      message: 'Account deleted successfully',
+      user: deletedUser
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post(

@@ -87,6 +87,13 @@ function buildWinnerItems(profile) {
     });
   });
 
+  (profile && Array.isArray(profile.specialisedAreas) ? profile.specialisedAreas : []).forEach(function (item) {
+    items.push({
+      type: 'SPECIALISED_AREA',
+      name: item.name
+    });
+  });
+
   return items;
 }
 
@@ -204,6 +211,16 @@ async function findExistingBid(tx, userId, targetDate) {
       bidDate: 'asc'
     }
   });
+}
+
+function buildBidHistoryData(bid, action, amount, targetDate) {
+  return {
+    bidId: bid.id,
+    userId: bid.userId,
+    amount: amount,
+    action: action,
+    targetFeaturedDate: targetDate
+  };
 }
 
 async function getOrderedBids(tx, targetDate) {
@@ -324,7 +341,7 @@ async function placeOrUpdateBid(userId, payload) {
       throw new Error('A bid already exists for this featured date. Use the increase bid endpoint');
     }
 
-    await tx.bid.create({
+    const bid = await tx.bid.create({
       data: {
         userId: userId,
         amount: amount,
@@ -334,6 +351,10 @@ async function placeOrUpdateBid(userId, payload) {
         targetFeaturedDate: targetDate,
         status: 'PENDING'
       }
+    });
+
+    await tx.bidHistory.create({
+      data: buildBidHistoryData(bid, 'PLACED', amount, targetDate)
     });
 
     await refreshLiveStatuses(tx, targetDate);
@@ -380,6 +401,10 @@ async function increaseBid(userId, payload) {
       data: {
         amount: amount
       }
+    });
+
+    await tx.bidHistory.create({
+      data: buildBidHistoryData(existingBid, 'INCREASED', amount, targetDate)
     });
 
     await refreshLiveStatuses(tx, targetDate);
@@ -434,10 +459,28 @@ async function getMyBidFeedback(userId, targetDateInput) {
   });
 }
 
-async function getBidHistory(userId) {
+async function getBidHistory(userId, targetDateInput) {
+  const targetDate = targetDateInput ? parseDateOnly(targetDateInput, 'targetFeaturedDate') : null;
+  const historyWhere = {
+    userId: userId
+  };
+
+  if (targetDate) {
+    historyWhere.targetFeaturedDate = getDateRange(targetDate);
+  }
+
+  const entries = await prisma.bidHistory.findMany({
+    where: historyWhere,
+    orderBy: [
+      { targetFeaturedDate: 'desc' },
+      { createdAt: 'asc' },
+      { id: 'asc' }
+    ]
+  });
   const bids = await prisma.bid.findMany({
     where: {
-      userId: userId
+      userId: userId,
+      targetFeaturedDate: targetDate ? getDateRange(targetDate) : undefined
     },
     orderBy: [
       { targetFeaturedDate: 'desc' },
@@ -446,6 +489,17 @@ async function getBidHistory(userId) {
   });
 
   return {
+    targetFeaturedDate: targetDate ? formatDateOnly(targetDate) : null,
+    entries: entries.map(function (entry) {
+      return {
+        id: entry.id,
+        bidId: entry.bidId,
+        amount: Number(entry.amount),
+        action: entry.action,
+        createdAt: entry.createdAt,
+        targetFeaturedDate: entry.targetFeaturedDate
+      };
+    }),
     bids: bids.map(function (bid) {
       return {
         id: bid.id,
@@ -478,7 +532,8 @@ async function getFeaturedProfile(targetDateInput) {
               certifications: true,
               licences: true,
               courses: true,
-              employment: true
+              employment: true,
+              specialisedAreas: true
             }
           }
         }
@@ -517,7 +572,8 @@ async function getCurrentBidReveal(targetDateInput) {
               certifications: true,
               licences: true,
               courses: true,
-              employment: true
+              employment: true,
+              specialisedAreas: true
             }
           }
         }

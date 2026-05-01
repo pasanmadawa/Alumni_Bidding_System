@@ -20,7 +20,7 @@ const {
 const router = express.Router();
 const requireAdmin = authorizeRoles('ADMIN');
 const requireAlumnus = authorizeRoles('ALUMNUS');
-const requireViewer = authorizeRoles('ALUMNUS', 'SPONSOR', 'ADMIN');
+const requireViewer = authorizeRoles('ALUMNUS', 'SPONSOR', 'ADMIN', 'STUDENT');
 
 function isValidationError(error) {
   return Boolean(
@@ -105,10 +105,17 @@ router.get('/me', requireAlumnus, async function getMyBid(req, res, next) {
 
 router.get('/history', requireAlumnus, async function getMyBidHistory(req, res, next) {
   try {
-    const history = await getBidHistory(req.currentUser.id);
+    const history = await getBidHistory(req.currentUser.id, req.query.targetFeaturedDate || req.query.date);
 
     res.json(history);
   } catch (error) {
+    if (isValidationError(error)) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: error.message
+      });
+    }
+
     next(error);
   }
 });

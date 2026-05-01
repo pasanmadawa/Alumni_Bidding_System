@@ -12,6 +12,22 @@ const { authorizeRoles } = require('../middleware/authorization');
 
 const router = express.Router();
 const uploadDir = path.join(__dirname, '..', 'public', 'uploads', 'profiles');
+const IIT_INSTITUTION_NAME = 'Informatics Institute of Technology, Sri Lanka';
+const DEGREE_PROGRAMMES = [
+  'BSc (Hons) Business Computing',
+  'BEng (Hons) Software Engineering',
+  'BSc (Hons) Computer Science',
+  'BSc (Hons) Artificial Intelligence And Data Science',
+  'BSc (Hons) Business Data Analytics',
+  'BA (Hons) Business Management',
+  'MSc Applied Artificial Intelligence',
+  'MA Fashion Business Management',
+  'MSc Business Analytics',
+  'MSc Information Technology',
+  'MSc Big Data Analytics',
+  'MSc Cyber Security And Forensics',
+  'MSc Advanced Software Engineering'
+];
 
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -90,7 +106,8 @@ async function getFullProfileByUserId(userId) {
       certifications: true,
       licences: true,
       courses: true,
-      employment: true
+      employment: true,
+      specialisedAreas: true
     }
   });
 }
@@ -110,7 +127,8 @@ function buildProfileIncludeForRole(user) {
       certifications: true,
       licences: true,
       courses: true,
-      employment: true
+      employment: true,
+      specialisedAreas: true
     };
   }
 
@@ -178,9 +196,16 @@ function buildBaseProfileUpdateData(body, user, options) {
 }
 
 function validateDegreeItem(item) {
+  const title = ensureRequired(toNullableString(item.title), 'Degree title');
+
+  if (!DEGREE_PROGRAMMES.includes(title)) {
+    throw new Error('Degree title must be one of the available programmes');
+  }
+
   return {
-    title: ensureRequired(toNullableString(item.title), 'Degree title'),
-    institutionUrl: validateOptionalUrl(toNullableString(item.institutionUrl), 'Degree URL'),
+    title: title,
+    institutionName: IIT_INSTITUTION_NAME,
+    degreeUrl: validateOptionalUrl(toNullableString(item.degreeUrl), 'Degree URL'),
     completionDate: toNullableDate(item.completionDate)
   };
 }
@@ -218,6 +243,12 @@ function validateEmploymentItem(item) {
   };
 }
 
+function validateSpecialisedAreaItem(item) {
+  return {
+    name: ensureRequired(toNullableString(item.name), 'Specialised area')
+  };
+}
+
 const collectionConfigs = {
   degrees: {
     delegate: 'degree',
@@ -243,6 +274,11 @@ const collectionConfigs = {
     delegate: 'employment',
     singular: 'employment record',
     validate: validateEmploymentItem
+  },
+  specialisedAreas: {
+    delegate: 'specialisedArea',
+    singular: 'specialised area',
+    validate: validateSpecialisedAreaItem
   }
 };
 
@@ -273,20 +309,19 @@ function buildCompletionStatus(profile, user) {
         { key: 'bio', complete: Boolean(profile && profile.bio) },
         { key: 'contactNumber', complete: Boolean(profile && profile.contactNumber) },
         { key: 'linkedinUrl', complete: Boolean(profile && profile.linkedinUrl) },
-        { key: 'profilePageUrl', complete: Boolean(profile && profile.profilePageUrl) },
         { key: 'profileImage', complete: Boolean(profile && profile.profileImage) },
         { key: 'degrees', complete: Boolean(profile && profile.degrees && profile.degrees.length) },
         { key: 'certifications', complete: Boolean(profile && profile.certifications && profile.certifications.length) },
         { key: 'licences', complete: Boolean(profile && profile.licences && profile.licences.length) },
         { key: 'courses', complete: Boolean(profile && profile.courses && profile.courses.length) },
-        { key: 'employment', complete: Boolean(profile && profile.employment && profile.employment.length) }
+        { key: 'employment', complete: Boolean(profile && profile.employment && profile.employment.length) },
+        { key: 'specialisedAreas', complete: Boolean(profile && profile.specialisedAreas && profile.specialisedAreas.length) }
       ]
     : [
         { key: 'displayName', complete: Boolean(profile && profile.displayName) },
         { key: 'bio', complete: Boolean(profile && profile.bio) },
         { key: 'contactNumber', complete: Boolean(profile && profile.contactNumber) },
         { key: 'linkedinUrl', complete: Boolean(profile && profile.linkedinUrl) },
-        { key: 'profilePageUrl', complete: Boolean(profile && profile.profilePageUrl) },
         { key: 'profileImage', complete: Boolean(profile && profile.profileImage) }
       ];
   const completed = checks.filter(function (item) {
@@ -375,6 +410,7 @@ router.patch('/me/basic', async function updateMyBasicProfile(req, res, next) {
       error.message &&
       (error.message.includes('required') ||
         error.message.includes('Invalid date') ||
+        error.message.includes('available programmes') ||
         error.message.includes('URL'))
     ) {
       return res.status(400).json({
@@ -447,11 +483,7 @@ router.put('/me', async function updateMyProfile(req, res, next) {
     }
 
     const degrees = isAlumnus(req.currentUser) ? normalizeCollection(body.degrees).map(function (item) {
-      return {
-        title: ensureRequired(toNullableString(item.title), 'Degree title'),
-        institutionUrl: validateOptionalUrl(toNullableString(item.institutionUrl), 'Degree URL'),
-        completionDate: toNullableDate(item.completionDate)
-      };
+      return validateDegreeItem(item);
     }) : [];
     const certifications = isAlumnus(req.currentUser) ? normalizeCollection(body.certifications).map(function (item) {
       return {
@@ -482,6 +514,9 @@ router.put('/me', async function updateMyProfile(req, res, next) {
         endDate: toNullableDate(item.endDate)
       };
     }) : [];
+    const specialisedAreas = isAlumnus(req.currentUser) ? normalizeCollection(body.specialisedAreas).map(function (item) {
+      return validateSpecialisedAreaItem(item);
+    }) : [];
 
     const updatedProfile = await prisma.$transaction(async function (tx) {
       const profile = await tx.profile.upsert({
@@ -507,7 +542,8 @@ router.put('/me', async function updateMyProfile(req, res, next) {
           tx.certification.deleteMany({ where: { profileId: profile.id } }),
           tx.licence.deleteMany({ where: { profileId: profile.id } }),
           tx.course.deleteMany({ where: { profileId: profile.id } }),
-          tx.employment.deleteMany({ where: { profileId: profile.id } })
+          tx.employment.deleteMany({ where: { profileId: profile.id } }),
+          tx.specialisedArea.deleteMany({ where: { profileId: profile.id } })
         ]);
 
         if (degrees.length) {
@@ -549,6 +585,14 @@ router.put('/me', async function updateMyProfile(req, res, next) {
             })
           });
         }
+
+        if (specialisedAreas.length) {
+          await tx.specialisedArea.createMany({
+            data: specialisedAreas.map(function (item) {
+              return Object.assign({ profileId: profile.id }, item);
+            })
+          });
+        }
       }
 
       return tx.profile.findUnique({
@@ -568,6 +612,7 @@ router.put('/me', async function updateMyProfile(req, res, next) {
       error.message &&
       (error.message.includes('required') ||
         error.message.includes('Invalid date') ||
+        error.message.includes('available programmes') ||
         error.message.includes('URL'))
     ) {
       return res.status(400).json({
@@ -580,7 +625,7 @@ router.put('/me', async function updateMyProfile(req, res, next) {
   }
 });
 
-router.post('/me/:section(degrees|certifications|licences|courses|employment)', authorizeRoles('ALUMNUS'), async function createProfileCollectionItem(req, res, next) {
+router.post('/me/:section(degrees|certifications|licences|courses|employment|specialisedAreas)', authorizeRoles('ALUMNUS'), async function createProfileCollectionItem(req, res, next) {
   try {
     const config = getCollectionConfig(req.params.section);
 
@@ -610,6 +655,7 @@ router.post('/me/:section(degrees|certifications|licences|courses|employment)', 
       error.message &&
       (error.message.includes('required') ||
         error.message.includes('Invalid date') ||
+        error.message.includes('available programmes') ||
         error.message.includes('URL'))
     ) {
       return res.status(400).json({
@@ -622,7 +668,7 @@ router.post('/me/:section(degrees|certifications|licences|courses|employment)', 
   }
 });
 
-router.patch('/me/:section(degrees|certifications|licences|courses|employment)/:itemId', authorizeRoles('ALUMNUS'), async function updateProfileCollectionItem(req, res, next) {
+router.patch('/me/:section(degrees|certifications|licences|courses|employment|specialisedAreas)/:itemId', authorizeRoles('ALUMNUS'), async function updateProfileCollectionItem(req, res, next) {
   try {
     const config = getCollectionConfig(req.params.section);
 
@@ -679,7 +725,7 @@ router.patch('/me/:section(degrees|certifications|licences|courses|employment)/:
   }
 });
 
-router.delete('/me/:section(degrees|certifications|licences|courses|employment)/:itemId', authorizeRoles('ALUMNUS'), async function deleteProfileCollectionItem(req, res, next) {
+router.delete('/me/:section(degrees|certifications|licences|courses|employment|specialisedAreas)/:itemId', authorizeRoles('ALUMNUS'), async function deleteProfileCollectionItem(req, res, next) {
   try {
     const config = getCollectionConfig(req.params.section);
 

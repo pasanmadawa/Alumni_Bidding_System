@@ -3,11 +3,28 @@
     accessToken: localStorage.getItem('accessToken') || '',
     currentUser: null
   };
+  const IIT_INSTITUTION_NAME = 'Informatics Institute of Technology, Sri Lanka';
+  const degreeProgrammes = [
+    'BSc (Hons) Business Computing',
+    'BEng (Hons) Software Engineering',
+    'BSc (Hons) Computer Science',
+    'BSc (Hons) Artificial Intelligence And Data Science',
+    'BSc (Hons) Business Data Analytics',
+    'BA (Hons) Business Management',
+    'MSc Applied Artificial Intelligence',
+    'MA Fashion Business Management',
+    'MSc Business Analytics',
+    'MSc Information Technology',
+    'MSc Big Data Analytics',
+    'MSc Cyber Security And Forensics',
+    'MSc Advanced Software Engineering'
+  ];
 
   const sectionConfigs = {
     degrees: [
-      { name: 'title', label: 'Degree Title', type: 'text', placeholder: 'BEng Software Engineering' },
-      { name: 'institutionUrl', label: 'Official Degree URL', type: 'url', placeholder: 'https://www.westminster.ac.uk' },
+      { name: 'title', label: 'Degree Title', type: 'select', options: degreeProgrammes },
+      { name: 'institutionName', label: 'Institute Name', type: 'text', readonly: true, value: IIT_INSTITUTION_NAME },
+      { name: 'degreeUrl', label: 'Degree URL', type: 'url', placeholder: 'https://www.iit.ac.lk/course/example' },
       { name: 'completionDate', label: 'Completion Date', type: 'date' }
     ],
     certifications: [
@@ -108,13 +125,27 @@
     sectionConfigs[section].forEach(function (field) {
       const label = document.createElement('label');
       label.textContent = field.label;
-      const input = document.createElement('input');
-      input.type = field.type;
-      input.placeholder = field.placeholder || '';
+      const input = field.type === 'select' ? document.createElement('select') : document.createElement('input');
+      if (field.type === 'select') {
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = 'Select programme';
+        input.appendChild(emptyOption);
+        field.options.forEach(function (option) {
+          const optionEl = document.createElement('option');
+          optionEl.value = option;
+          optionEl.textContent = option;
+          input.appendChild(optionEl);
+        });
+      } else {
+        input.type = field.type;
+        input.placeholder = field.placeholder || '';
+      }
+      input.readOnly = Boolean(field.readonly);
       input.dataset.field = field.name;
       input.value = data && data[field.name]
         ? (field.type === 'date' ? String(data[field.name]).slice(0, 10) : data[field.name])
-        : '';
+        : (field.value || '');
       label.appendChild(input);
       row.appendChild(label);
     });
